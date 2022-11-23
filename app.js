@@ -114,18 +114,17 @@ const initialRun = async () => {
 
 // set up appData
 const setUp = async () => {
-  // const error = await loadAppData(appData, async () => {
-  //   if (appData.accessToken === null || Date.now() >= appData.expireDate) {
-  //     await setToken();
-  //   }
-  //   await checkEvents(appData);
-  // });
+  const error = await loadAppData(appData, async () => {
+    if (appData.accessToken === null || Date.now() >= appData.expireDate) {
+      await setToken();
+    }
+    await checkEvents(appData);
+  });
 
-  // if (error) {
-  //   await initialRun();
-  //   await saveAppData(appData);
-  // }
-  await initialRun();
+  if (error) {
+    await initialRun();
+    await saveAppData(appData);
+  }
 
   console.log(new Date().toISOString(), "- sending data to client");
   clients.forEach((client) =>
