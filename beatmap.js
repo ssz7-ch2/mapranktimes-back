@@ -67,15 +67,15 @@ class BeatmapSet {
     }
   }
 
-  reduced() {
+  static reduced(beatmap) {
     const r = {
-      id: this.id,
-      rd: this.rankDate.getTime() / 1000,
-      a: this.artist,
-      t: this.title,
-      m: this.mapper,
-      mi: this.mapperId,
-      b: this.beatmaps.map((beatmap) => {
+      id: beatmap.id,
+      rd: beatmap.rankDate.getTime() / 1000,
+      a: beatmap.artist,
+      t: beatmap.title,
+      m: beatmap.mapper,
+      mi: beatmap.mapperId,
+      b: beatmap.beatmaps.map((beatmap) => {
         return {
           id: beatmap.id,
           s: beatmap.spin,
@@ -84,10 +84,10 @@ class BeatmapSet {
           sr: beatmap.stars,
         };
       }),
-      re: this.rankEarly,
-      p: this.probability,
+      re: beatmap.rankEarly,
+      p: beatmap.probability,
     };
-    if (this.rankEarly) r["rde"] = this.rankDateEarly.getTime() / 1000;
+    if (beatmap.rankEarly) r["rde"] = beatmap.rankDateEarly.getTime() / 1000;
     return r;
   }
 }

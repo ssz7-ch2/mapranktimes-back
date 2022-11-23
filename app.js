@@ -12,6 +12,7 @@ const { adjustRankDates, checkEvents } = require("./osuHelpers");
 const { loadAppData, saveAppData } = require("./storage");
 const config = require("./config");
 const { MINUTE } = require("./utils/timeConstants");
+const { BeatmapSet } = require("./beatmap");
 
 app.use(cors());
 app.use(express.static("public"));
@@ -74,7 +75,9 @@ const sendEvent = async () => {
   console.log(new Date().toISOString(), "- sending data to client");
   clients.forEach((client) =>
     client.res.write(
-      `data: ${JSON.stringify(appData.qualifiedMaps.map((beatmapSet) => beatmapSet.reduced()))}\n\n`
+      `data: ${JSON.stringify(
+        appData.qualifiedMaps.map((beatmapSet) => BeatmapSet.reduced(beatmapSet))
+      )}\n\n`
     )
   );
 
@@ -129,7 +132,9 @@ const setUp = async () => {
   console.log(new Date().toISOString(), "- sending data to client");
   clients.forEach((client) =>
     client.res.write(
-      `data: ${JSON.stringify(appData.qualifiedMaps.map((beatmapSet) => beatmapSet.reduced()))}\n\n`
+      `data: ${JSON.stringify(
+        appData.qualifiedMaps.map((beatmapSet) => BeatmapSet.reduced(beatmapSet))
+      )}\n\n`
     )
   );
 
@@ -209,7 +214,7 @@ setUp();
 
 app.get("/beatmapsets", (req, res) => {
   if ("full" in req.query) {
-    res.status(200).json(appData.qualifiedMaps.map((beatmapSet) => beatmapSet.reduced()));
+    res.status(200).json(appData.qualifiedMaps.map((beatmapSet) => BeatmapSet.reduced(beatmapSet)));
   } else if ("stream" in req.query) {
     const headers = {
       "Content-Type": "text/event-stream",
@@ -220,7 +225,7 @@ app.get("/beatmapsets", (req, res) => {
     res.writeHead(200, headers);
 
     const data = `data: ${JSON.stringify(
-      appData.qualifiedMaps.map((beatmapSet) => beatmapSet.reduced())
+      appData.qualifiedMaps.map((beatmapSet) => BeatmapSet.reduced(beatmapSet))
     )}\n\n`;
 
     res.write(data);
