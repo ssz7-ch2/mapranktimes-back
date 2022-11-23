@@ -63,7 +63,7 @@ It's a bit complicated but adding `1 day 20 min` instead of `1 day` makes things
 Every 20 min (`XX:00`, `XX:20`, `XX:40`), the server runs a function to rank maps.  
 If the `current date > mapset's rank date`, then the mapset will be ranked.
 
-## How random delay works
+## How rank delay works
 
 Every ranking interval, there is a random delay of 10 seconds to 8 minutes\* before the ranking function actually runs for standard mapsets.
 And when the interval runs, both 7 days in qualified rule and daily rank limit must be upheld (so basically the rank date that is calculated in previous section).  
@@ -73,7 +73,7 @@ If either one is false, then the mapset will be ranked on the next interval inst
 
 ## Why some mapsets get ranked early
 
-Because of random delay, it is possible the ranking function to run soon after the rank date instead of 20 minutes later like usual.  
+Because of rank delay, it is possible the ranking function to run soon after the rank date instead of 20 minutes later like usual.  
 e.g. Let's say a mapset has a rank date at `15:25:30`. At interval `15:20:00`, suppose there is a random delay of `3:47` added. Which means the ranking function runs at `15:23:47`. Since `15:23:47 < 15:25:30`, the mapset can't be ranked and has to wait till the next interval `15:40:00` to be ranked.  
 But if the rank date was at `15:22:39` instead, then the mapset will be ranked as `15:23:47 > 15:22:39`.
 
@@ -96,13 +96,16 @@ As to why `1 day 20 min` is used, the probability of a mapset being ranked early
 
 \*Does not account for scenarios where there are mapsets in other modes being ranked at the same interval
 
-<h3 style="font-weight: normal">Probability that sum of rank delays is greater than <code>x</code> seconds - <a href="https://github.com/ssz7-ch2/mapranktimes-back/blob/main/utils/probability.js#L7-L37">Code link</a></h3>
+<h3 style="font-weight: normal">Probability that sum of delays is greater than <code>x</code> seconds - <a href="https://github.com/ssz7-ch2/mapranktimes-back/blob/main/utils/probability.js#L7-L37">Code link</a></h3>
 
 - Because of shuffle, there is a 25% chance for each of the positions.
 - For each position, calculate the probability that the sum of the random delays is greater than `x` seconds
   - The number of random delays depends on the position (1st = 1 delay, 2nd = 2 delays, etc.)
   - Since each random delay is a uniform distribution, use the Irwin-Hall distribution (uniform sum distribution) to calculate this. Probability of the sum being greater than `x` is 1 - CDF of the distribution.
 - Sum up the probability for each position and divide by 4 to get final probability.
+
+#### Graph of the probabilty vs seconds  
+<img src="https://user-images.githubusercontent.com/76718358/203628444-ba24cd4f-7e42-469d-b995-dff07cede5ff.png" alt="line graph" width="500">
 
 ---
 
