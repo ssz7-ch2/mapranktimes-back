@@ -72,7 +72,7 @@ If either one is false, then the mapset will be ranked on the next interval inst
 
 ## Why some mapsets get ranked early
 
-Because of rank delay, it is possible the ranking function to run soon after the rank date instead of 20 minutes later like usual.  
+Because of rank delay, it is possible for the ranking function to run soon after the rank date instead of 20 minutes later like usual.  
 e.g. Let's say a mapset has a rank date at `15:25:30`. At interval `15:20:00`, suppose there is a random delay of `3:47` added. Which means the ranking function runs at `15:23:47`. Since `15:23:47 < 15:25:30`, the mapset can't be ranked and has to wait till the next interval `15:40:00` to be ranked.  
 But if the rank date was at `15:22:39` instead, then the mapset will be ranked as `15:23:47 > 15:22:39`.
 
