@@ -43,7 +43,6 @@ Loop through qualified mapsets and choose the later date:
 | ------------------------ | --- | ------------------------- | --- | ------------------------------- |
 | `Qualified #1 rank date` | =   | `Qualified #1 queue date` | vs  | `Ranked #1 ranked date + 1 day` |
 | `Qualified #2 rank date` | =   | `Qualified #2 queue date` | vs  | `Ranked #2 ranked date + 1 day` |
-
 | ...
 | `Qualified #12 rank date` | = | `Qualified #12 queue date` | vs | `Ranked #12 ranked date + 1 day` |
 | `Qualified #13 rank date` | = | `Qualified #13 queue date` | vs | `Qualified #1 rank date + 1 day 20 min` |
