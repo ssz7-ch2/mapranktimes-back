@@ -27,6 +27,8 @@ const adjustRankDates = (qualifiedMaps, rankedMaps, start = 0) => {
       (qualifiedMap.rankDateEarly.getUTCMinutes() % 20) * 60 +
         qualifiedMap.rankDateEarly.getSeconds()
     );
+    if (i >= rankedMaps.length + config.RANK_PER_DAY && compareDate >= qualifiedMap.queueDate.getTime())
+      qualifiedMap.probability = 0;
     qualifiedMap.rankEarly = qualifiedMap.probability >= 0.01; // about the same as >= 6min 6s
 
     qualifiedMap.rankDate = roundMinutes(qualifiedMap.rankDateEarly.getTime());
