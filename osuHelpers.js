@@ -19,16 +19,21 @@ const adjustRankDates = (qualifiedMaps, rankedMaps, start = 0) => {
     if (isNaN(compareDate))
       compareDate = 0; // compareDate = NaN means that queueDate > rank limit date
     else if (i >= rankedMaps.length + config.RANK_PER_DAY)
-      compareDate += config.RANK_INTERVAL * MINUTE; // increase accuracy for maps furhter down in the queue
+      compareDate += config.RANK_INTERVAL * MINUTE; // increase accuracy for maps further down in the queue
 
     qualifiedMap.rankDateEarly = new Date(Math.max(qualifiedMap.queueDate.getTime(), compareDate)); // unrounded rankDate
 
-    qualifiedMap.probability = probabilityAfter(
-      (qualifiedMap.rankDateEarly.getUTCMinutes() % 20) * 60 +
-        qualifiedMap.rankDateEarly.getSeconds()
-    );
-    if (i >= rankedMaps.length + config.RANK_PER_DAY && compareDate >= qualifiedMap.queueDate.getTime())
-      qualifiedMap.probability = 0;
+    // don't calculate probability for maps using rounded compare date
+    if (
+      qualifiedMap.queueDate.getTime() > compareDate ||
+      i < rankedMaps.length + config.RANK_PER_DAY
+    ) {
+      qualifiedMap.probability = probabilityAfter(
+        (qualifiedMap.rankDateEarly.getUTCMinutes() % 20) * 60 +
+          qualifiedMap.rankDateEarly.getSeconds()
+      );
+    }
+
     qualifiedMap.rankEarly = qualifiedMap.probability >= 0.01; // about the same as >= 6min 6s
 
     qualifiedMap.rankDate = roundMinutes(qualifiedMap.rankDateEarly.getTime());
