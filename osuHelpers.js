@@ -3,11 +3,15 @@ const config = require("./config");
 const { MINUTE, DAY } = require("./utils/timeConstants");
 const { probabilityAfter } = require("./utils/probability");
 
-// round milliseconds up to rank intervals and return new date
-const roundMinutes = (milliseconds) =>
-  new Date(
-    Math.ceil(milliseconds / (config.RANK_INTERVAL * MINUTE)) * (config.RANK_INTERVAL * MINUTE)
-  );
+// round milliseconds up or down to rank intervals and return new date
+const roundMinutes = (milliseconds, down = false) =>
+  (down
+    ? Math.floor(milliseconds / (config.RANK_INTERVAL * MINUTE))
+    : Math.ceil(milliseconds / (config.RANK_INTERVAL * MINUTE))) *
+  (config.RANK_INTERVAL * MINUTE);
+
+// time from previous interval in seconds
+const intervalTimeDelta = (date) => (date.getUTCMinutes() % 20) * 60 + date.getSeconds();
 
 const adjustRankDates = (qualifiedMaps, rankedMaps, start = 0) => {
   const combined = [...rankedMaps, ...qualifiedMaps];
@@ -28,17 +32,14 @@ const adjustRankDates = (qualifiedMaps, rankedMaps, start = 0) => {
       qualifiedMap.queueDate.getTime() > compareDate ||
       i < rankedMaps.length + config.RANK_PER_DAY
     ) {
-      qualifiedMap.probability = probabilityAfter(
-        (qualifiedMap.rankDateEarly.getUTCMinutes() % 20) * 60 +
-          qualifiedMap.rankDateEarly.getSeconds()
-      );
+      qualifiedMap.probability = probabilityAfter(intervalTimeDelta(qualifiedMap.rankDateEarly));
     }
 
     qualifiedMap.rankEarly = qualifiedMap.probability >= 0.01; // about the same as >= 6min 6s
 
-    qualifiedMap.rankDate = roundMinutes(qualifiedMap.rankDateEarly.getTime());
+    qualifiedMap.rankDate = new Date(roundMinutes(qualifiedMap.rankDateEarly.getTime()));
 
-    if (i - rankedMaps.length >= config.RANK_PER_RUN) {
+    if (i - config.RANK_PER_RUN >= 0) {
       // fix date for maps after the adjustment below
       if (qualifiedMap.rankDate < combined[i - 1].rankDate)
         qualifiedMap.rankDate = combined[i - 1].rankDate;
@@ -47,11 +48,24 @@ const adjustRankDates = (qualifiedMaps, rankedMaps, start = 0) => {
       if (
         combined
           .slice(i - config.RANK_PER_RUN, i)
-          .every((beatmapSet) => beatmapSet.rankDate.getTime() === qualifiedMap.rankDate.getTime())
-      )
+          .every(
+            (beatmapSet) =>
+              roundMinutes(beatmapSet.rankDate.getTime(), true) === qualifiedMap.rankDate.getTime()
+          )
+      ) {
+        qualifiedMap.rankDateEarly = qualifiedMap.rankDate;
+        if (combined[i - 1].rankEarly) {
+          // for this scenenario, rankEarly is dependent on the previous map being ranked early
+          qualifiedMap.probability = probabilityAfter(
+            intervalTimeDelta(combined[i - 1].rankDateEarly),
+            config.RANK_PER_RUN - 1
+          );
+          qualifiedMap.rankEarly = qualifiedMap.probability >= 0.01;
+        }
         qualifiedMap.rankDate = new Date(
           qualifiedMap.rankDate.getTime() + config.RANK_INTERVAL * MINUTE
         );
+      }
     }
   }
 };
