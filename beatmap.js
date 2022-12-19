@@ -16,6 +16,7 @@ class BeatmapSet {
       status == "qualified" // only set beatmaps if mapset is qualified
         ? beatmaps
             .map((beatmap) => new Beatmap(beatmap))
+            .filter((beatmap) => beatmap.mode === 0)
             .sort((a, b) => (b.stars < a.stars ? 1 : -1))
         : null;
     this.rankEarly = false;
