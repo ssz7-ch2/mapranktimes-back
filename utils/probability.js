@@ -6,6 +6,7 @@ const { permutations } = require("itertools");
 // otherModes, beatmaps in other modes, list of length 3 [0, 0, 0]
 const probabilityAfter = (seconds, beatmapSets = 0, otherModes = null) => {
   let sum = 0;
+  const memo = {};
   // calculate probability for each ranking position (1 means this gamemode is first in queue)
   for (let i = 1; i <= 4; i++) {
     // each beatmapSet also has its own delay
@@ -28,8 +29,14 @@ const probabilityAfter = (seconds, beatmapSets = 0, otherModes = null) => {
       }
     }
     for (const permSum of permSums) {
+      if (total + permSum in memo) {
+        modeSum += memo[total + permSum];
+        continue;
+      }
       const transformed = (seconds - (total + permSum) * DELAY_MIN) / (DELAY_MAX - DELAY_MIN);
-      modeSum += 1 - uniformSumCDF(total + permSum, transformed);
+      const value = 1 - uniformSumCDF(total + permSum, transformed);
+      memo[total + permSum] = value;
+      modeSum += value;
     }
     sum += modeSum / permSums.length;
   }
