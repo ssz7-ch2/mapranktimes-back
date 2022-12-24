@@ -8,7 +8,7 @@ const {
 const app = express();
 const cors = require("cors");
 const schedule = require("node-schedule");
-const { adjustRankDates, checkEvents } = require("./osuHelpers");
+const { adjustAllRankDates, checkEvents, reduceQualifiedMaps } = require("./osuHelpers");
 const { loadAppData, saveAppData } = require("./storage");
 const config = require("./config");
 const { MINUTE } = require("./utils/timeConstants");
@@ -26,8 +26,8 @@ const appData = {
   accessToken: null,
   expireDate: null,
   lastEventId: null,
-  rankedMaps: [],
-  qualifiedMaps: [],
+  rankedMaps: [[], [], [], []],
+  qualifiedMaps: [[], [], [], []],
 };
 
 let rankQueue = [];
@@ -74,20 +74,16 @@ const sendEvent = async () => {
 
   console.log(new Date().toISOString(), "- sending data to client");
   clients.forEach((client) =>
-    client.res.write(
-      `data: ${JSON.stringify(
-        appData.qualifiedMaps.map((beatmapSet) => BeatmapSet.reduced(beatmapSet))
-      )}\n\n`
-    )
+    client.res.write(`data: ${JSON.stringify(reduceQualifiedMaps(appData.qualifiedMaps))}\n\n`)
   );
 
   // remove from queue if map is ranked
   rankQueue = rankQueue.filter((queueSet) =>
-    appData.qualifiedMaps.some((beatmapSet) => beatmapSet.id == queueSet.id)
+    appData.qualifiedMaps[queueSet.mode].some((beatmapSet) => beatmapSet.id == queueSet.id)
   );
 
   running = false;
-  return rankQueue.length == 0;
+  return rankQueue.length === 0;
 };
 
 // TODO: add condition
@@ -111,31 +107,32 @@ const initialRun = async () => {
   console.log(new Date().toISOString(), "- finished getting rankedMaps");
   appData.qualifiedMaps = await getQualifiedMaps(appData.accessToken);
   console.log(new Date().toISOString(), "- finished getting qualifiedMaps");
-  adjustRankDates(appData.qualifiedMaps, appData.rankedMaps);
+  adjustAllRankDates(appData.qualifiedMaps, appData.rankedMaps);
   console.log(new Date().toISOString(), "- finished adjusting rank times");
 };
 
 // set up appData
 const setUp = async () => {
-  const error = await loadAppData(appData, async () => {
-    if (appData.accessToken === null || Date.now() >= appData.expireDate) {
-      await setToken();
-    }
-    await checkEvents(appData);
-  });
-
-  if (error) {
+  if (process.env.RESET) {
     await initialRun();
-    await saveAppData(appData);
+    if (process.env.RESET_STORE) await saveAppData(appData);
+  } else {
+    const error = await loadAppData(appData, async () => {
+      if (appData.accessToken === null || Date.now() >= appData.expireDate) {
+        await setToken();
+      }
+      await checkEvents(appData);
+    });
+
+    if (error) {
+      await initialRun();
+      await saveAppData(appData);
+    }
   }
 
   console.log(new Date().toISOString(), "- sending data to client");
   clients.forEach((client) =>
-    client.res.write(
-      `data: ${JSON.stringify(
-        appData.qualifiedMaps.map((beatmapSet) => BeatmapSet.reduced(beatmapSet))
-      )}\n\n`
-    )
+    client.res.write(`data: ${JSON.stringify(reduceQualifiedMaps(appData.qualifiedMaps))}\n\n`)
   );
 
   schedule.scheduleJob("*/5 * * * *", async () => {
@@ -154,26 +151,26 @@ const setUp = async () => {
         // get mapsets that could be ranked
         // TODO: for each mode
         // rankQueue = [[mode, beatmapset], ...] sort by queueDate
-        for (let i = 0; i < Math.min(config.RANK_PER_RUN, appData.qualifiedMaps.length); i++) {
-          if (
-            compareDate >=
-            (appData.qualifiedMaps[i].rankEarly
-              ? appData.qualifiedMaps[i].rankDateEarly
-              : appData.qualifiedMaps[i].rankDate)
-          )
-            rankQueue.push(appData.qualifiedMaps[i]);
-          else break;
-        }
+
+        appData.qualifiedMaps.forEach((beatmapSets) => {
+          for (let i = 0; i < Math.min(config.RANK_PER_RUN, beatmapSets.length); i++) {
+            if (
+              compareDate >=
+              (beatmapSets[i].rankEarly ? beatmapSets[i].rankDateEarly : beatmapSets[i].rankDate)
+            )
+              rankQueue.push(beatmapSets[i]);
+            else break;
+          }
+        });
 
         const interval = 2000;
 
         if (rankQueue.length > 0) {
-          // TODO: if rankQueue has maps from othr modes, recalculate rankEarly probability (and send to client)
           const earliestRankDate = rankQueue[0].rankEarly
             ? rankQueue[0].rankDateEarly
             : rankQueue[0].rankDate;
           // increase check duration if maps in other modes
-          const checkDuration = 10 * MINUTE;
+          const checkDuration = (8 + rankQueue.length * 2) * MINUTE;
           if (currDate >= earliestRankDate) {
             const repeats = Math.ceil(checkDuration / interval);
             setIntervalRep(async () => await sendEvent(), interval, repeats);
@@ -197,7 +194,11 @@ const setUp = async () => {
       await sendEvent();
 
       // update google storage twice per day
-      if (currDate.getUTCHours() % 12 === 0 && currDate.getUTCMinutes() === 0) {
+      if (
+        !process.env.DEVELOPMENT &&
+        currDate.getUTCHours() % 12 === 0 &&
+        currDate.getUTCMinutes() === 0
+      ) {
         await saveAppData(appData);
       }
     } catch (error) {
@@ -214,7 +215,7 @@ setUp();
 
 app.get("/beatmapsets", (req, res) => {
   if ("full" in req.query) {
-    res.status(200).json(appData.qualifiedMaps.map((beatmapSet) => BeatmapSet.reduced(beatmapSet)));
+    res.status(200).json(reduceQualifiedMaps(appData.qualifiedMaps));
   } else if ("stream" in req.query) {
     const headers = {
       "Content-Type": "text/event-stream",
@@ -224,9 +225,7 @@ app.get("/beatmapsets", (req, res) => {
     };
     res.writeHead(200, headers);
 
-    const data = `data: ${JSON.stringify(
-      appData.qualifiedMaps.map((beatmapSet) => BeatmapSet.reduced(beatmapSet))
-    )}\n\n`;
+    const data = `data: ${JSON.stringify(reduceQualifiedMaps(appData.qualifiedMaps))}\n\n`;
 
     res.write(data);
 
@@ -245,31 +244,33 @@ app.get("/beatmapsets", (req, res) => {
     });
   } else {
     res.status(200).json(
-      appData.qualifiedMaps.map((beatmapSet) => {
-        return {
-          id: beatmapSet.id,
-          artist: beatmapSet.artist,
-          title: beatmapSet.title,
-          rank_time: beatmapSet.rankDate.toISOString(),
-          rank_early: beatmapSet.rankEarly,
-          beatmaps: beatmapSet.beatmaps.map((beatmap) => {
-            return {
-              id: beatmap.id,
-              spinners: beatmap.spin,
-              length: beatmap.len,
-              version: beatmap.ver,
-            };
-          }),
-        };
-      })
+      appData.qualifiedMaps.map((beatmapSets) =>
+        beatmapSets.map((beatmapSet) => {
+          return {
+            id: beatmapSet.id,
+            artist: beatmapSet.artist,
+            title: beatmapSet.title,
+            rank_time: beatmapSet.rankDate.toISOString(),
+            rank_early: beatmapSet.rankEarly,
+            beatmaps: beatmapSet.beatmaps.map((beatmap) => {
+              return {
+                id: beatmap.id,
+                spinners: beatmap.spin,
+                length: beatmap.len,
+                version: beatmap.ver,
+              };
+            }),
+          };
+        })
+      )
     );
   }
 });
 
 app.get("/beatmapsets/:id", (req, res) => {
-  const beatmapSet = appData.qualifiedMaps.filter(
-    (beatmapSet) => beatmapSet.id == req.params.id
-  )[0];
+  const beatmapSet = appData.qualifiedMaps
+    .flat()
+    .filter((beatmapSet) => beatmapSet.id == req.params.id)[0];
   if (beatmapSet == undefined) res.sendStatus(404);
   else {
     res.status(200).json({

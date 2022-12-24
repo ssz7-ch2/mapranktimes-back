@@ -1,4 +1,5 @@
 const { getRankedMaps, getBeatmapSet, getEventsAfter } = require("./osuRequests");
+const { BeatmapSet } = require("./beatmap");
 const config = require("./config");
 const { MINUTE, DAY } = require("./utils/timeConstants");
 const { probabilityAfter } = require("./utils/probability");
@@ -14,35 +15,25 @@ const roundMinutes = (milliseconds, down = false) =>
 const intervalTimeDelta = (date) => (date.getUTCMinutes() % 20) * 60 + date.getSeconds();
 
 const adjustRankDates = (qualifiedMaps, rankedMaps, start = 0) => {
-  const combined = [...rankedMaps, ...qualifiedMaps];
+  const combined = rankedMaps.concat(qualifiedMaps);
   for (let i = rankedMaps.length + start; i < combined.length; i++) {
     const qualifiedMap = combined[i];
 
     let compareDate = combined[i - config.RANK_PER_DAY]?.rankDate.getTime() + DAY; // daily rank limit date
 
     if (isNaN(compareDate))
-      compareDate = 0; // compareDate = NaN means that queueDate > rank limit date
+      compareDate = 0; // compareDate == NaN means that queueDate > rank limit date
     else if (i >= rankedMaps.length + config.RANK_PER_DAY)
       compareDate += config.RANK_INTERVAL * MINUTE; // increase accuracy for maps further down in the queue
 
     qualifiedMap.rankDateEarly = new Date(Math.max(qualifiedMap.queueDate.getTime(), compareDate)); // unrounded rankDate
-
-    // don't calculate probability for maps using rounded compare date
-    if (
-      qualifiedMap.queueDate.getTime() > compareDate ||
-      i < rankedMaps.length + config.RANK_PER_DAY
-    ) {
-      qualifiedMap.probability = probabilityAfter(intervalTimeDelta(qualifiedMap.rankDateEarly));
-    }
-
-    qualifiedMap.rankEarly = qualifiedMap.probability >= 0.01; // about the same as >= 6min 6s
-
     qualifiedMap.rankDate = new Date(roundMinutes(qualifiedMap.rankDateEarly.getTime()));
 
     if (i - config.RANK_PER_RUN >= 0) {
       // fix date for maps after the adjustment below
-      if (qualifiedMap.rankDate < combined[i - 1].rankDate)
+      if (qualifiedMap.rankDate < combined[i - 1].rankDate) {
         qualifiedMap.rankDate = combined[i - 1].rankDate;
+      }
 
       // if 3 maps have the same time, the 3rd map is pushed to next interval
       if (
@@ -54,14 +45,14 @@ const adjustRankDates = (qualifiedMaps, rankedMaps, start = 0) => {
           )
       ) {
         qualifiedMap.rankDateEarly = qualifiedMap.rankDate;
-        if (combined[i - 1].rankEarly) {
-          // for this scenenario, rankEarly is dependent on the previous map being ranked early
-          qualifiedMap.probability = probabilityAfter(
-            intervalTimeDelta(combined[i - 1].rankDateEarly),
-            config.RANK_PER_RUN - 1
-          );
-          qualifiedMap.rankEarly = qualifiedMap.probability >= 0.01;
-        }
+        // if (combined[i - 1].rankEarly) {
+        //   // for this scenenario, rankEarly is dependent on the previous map being ranked early
+        //   qualifiedMap.probability = probabilityAfter(
+        //     intervalTimeDelta(combined[i - 1].rankDateEarly),
+        //     config.RANK_PER_RUN - 1
+        //   );
+        //   qualifiedMap.rankEarly = qualifiedMap.probability >= 0.01;
+        // }
         qualifiedMap.rankDate = new Date(
           qualifiedMap.rankDate.getTime() + config.RANK_INTERVAL * MINUTE
         );
@@ -70,15 +61,56 @@ const adjustRankDates = (qualifiedMaps, rankedMaps, start = 0) => {
   }
 };
 
-const adjustAllRankDates = ({ qualifiedMaps, rankedMaps }) => {
-  // for each mode
+const calcEarlyProbability = (qualifiedMaps) => {
+  // { <rankDate>: [0, 0, 0, 0]} list of beatmap counts for each mode
+  const rankDates = {};
+  qualifiedMaps.forEach((beatmapSets) => {
+    beatmapSets.forEach((beatmapSet) => {
+      if (!(beatmapSet.rankDate.getTime() in rankDates)) {
+        rankDates[beatmapSet.rankDate.getTime()] = [0, 0, 0, 0];
+      }
+      rankDates[beatmapSet.rankDate.getTime()][beatmapSet.mode] += 1;
+    });
+  });
+
+  qualifiedMaps.forEach((beatmapSets) => {
+    beatmapSets.forEach((beatmapSet) => {
+      beatmapSet.probability = 0;
+      // don't calculate probability for maps using rounded compare date
+      if (
+        beatmapSet.rankDate.getTime() !== beatmapSet.rankDateEarly.getTime() &&
+        beatmapSet.rankDate - beatmapSet.rankDateEarly !== config.RANK_INTERVAL * MINUTE
+      ) {
+        const otherModes = rankDates[beatmapSet.rankDate.getTime()].filter(
+          (_, mode) => mode != beatmapSet.mode
+        );
+        beatmapSet.probability = probabilityAfter(
+          intervalTimeDelta(beatmapSet.rankDateEarly),
+          0,
+          otherModes
+        );
+      }
+      beatmapSet.rankEarly = beatmapSet.probability >= 0.01; // about the same as >= 6min 6s
+    });
+  });
+};
+
+const adjustAllRankDates = (qualifiedMaps, rankedMaps) => {
+  const MODES = 4;
+  for (let mode = 0; mode < MODES; mode++) {
+    adjustRankDates(qualifiedMaps[mode], rankedMaps[mode]);
+  }
+  calcEarlyProbability(qualifiedMaps);
 };
 
 // find map in qualifiedMaps, then remove and return the map and its index
 // returns empty list if map not found
 const removeMapFromQualified = (qualifiedMaps, mapEvent) => {
-  for (let i = 0; i < qualifiedMaps.length; i++) {
-    if (qualifiedMaps[i].id == mapEvent.beatmapSetId) return [qualifiedMaps.splice(i, 1)[0], i];
+  // have to loop through all since mapEvent has no mode info :(
+  for (const beatmapSets of qualifiedMaps) {
+    for (let i = 0; i < beatmapSets.length; i++) {
+      if (beatmapSets[i].id == mapEvent.beatmapSetId) return [beatmapSets.splice(i, 1)[0], i];
+    }
   }
   return [];
 };
@@ -92,27 +124,31 @@ const rankEvent = async (qualifiedMaps, rankedMaps, accessToken, mapEvent) => {
     rankedMaps = await getRankedMaps(accessToken);
   } else {
     beatmapSetTarget.rankDate = mapEvent.createdAt;
-    rankedMaps.push(beatmapSetTarget);
-    if (rankedMaps.length > config.RANK_PER_DAY) rankedMaps.shift(); // only keep necessary maps
+    rankedMaps[beatmapSetTarget.mode].push(beatmapSetTarget);
+    if (rankedMaps[beatmapSetTarget.mode].length > config.RANK_PER_DAY)
+      rankedMaps[beatmapSetTarget.mode].shift(); // only keep necessary maps
   }
 
   // TODO: could be more efficient
-  adjustRankDates(qualifiedMaps, rankedMaps, start);
+  adjustRankDates(qualifiedMaps[beatmapSetTarget.mode], rankedMaps[beatmapSetTarget.mode], start);
+  calcEarlyProbability(qualifiedMaps);
 };
 
 const qualifyEvent = async (qualifiedMaps, rankedMaps, accessToken, mapEvent) => {
   const newBeatmapSet = await getBeatmapSet(accessToken, mapEvent.beatmapSetId);
 
   // reverse order since usually new qualified maps are added near the end of list
-  let i = qualifiedMaps.length;
+  const beatmapSets = qualifiedMaps[newBeatmapSet.mode];
+  let i = qualifiedMaps[newBeatmapSet.mode].length;
   for (; i > 0; i--) {
-    if (newBeatmapSet.queueDate >= qualifiedMaps[i - 1].queueDate) {
-      qualifiedMaps.splice(i, 0, newBeatmapSet);
+    if (newBeatmapSet.queueDate >= qualifiedMaps[newBeatmapSet.mode][i - 1].queueDate) {
+      qualifiedMaps[newBeatmapSet.mode].splice(i, 0, newBeatmapSet);
       break;
     }
   }
 
-  adjustRankDates(qualifiedMaps, rankedMaps, i);
+  adjustRankDates(qualifiedMaps[newBeatmapSet.mode], rankedMaps[newBeatmapSet.mode], i);
+  calcEarlyProbability(qualifiedMaps);
 };
 
 const disqualifyEvent = (qualifiedMaps, rankedMaps, mapEvent) => {
@@ -120,18 +156,12 @@ const disqualifyEvent = (qualifiedMaps, rankedMaps, mapEvent) => {
 
   if (beatmapSetTarget == null) return;
 
-  adjustRankDates(qualifiedMaps, rankedMaps, start);
+  adjustRankDates(qualifiedMaps[beatmapSetTarget.mode], rankedMaps[beatmapSetTarget.mode], start);
+  calcEarlyProbability(qualifiedMaps);
 };
 
 const checkEvents = async (appData) => {
   let [newEvents, newLastEventId] = await getEventsAfter(appData.accessToken, appData.lastEventId);
-
-  // remove other gamemode events
-  newEvents = newEvents.filter(
-    (mapEvent) =>
-      mapEvent.type == "qualify" ||
-      appData.qualifiedMaps.some((beatmapSet) => beatmapSet.id == mapEvent.beatmapSetId)
-  );
 
   for (const mapEvent of newEvents) {
     console.log(
@@ -177,9 +207,14 @@ const JSONToBeatmapSets = (beatmapSetsJSON) => {
     if (beatmapSet.rankDate) beatmapSet.rankDate = new Date(beatmapSet.rankDate);
     if (beatmapSet.rankDateEarly) beatmapSet.rankDateEarly = new Date(beatmapSet.rankDateEarly);
   });
-  return beatmapSetsJSON;
 };
 
-module.exports.adjustRankDates = adjustRankDates;
+const reduceQualifiedMaps = (qualifiedMaps) =>
+  qualifiedMaps.map((beatmapSets) =>
+    beatmapSets.map((beatmapSet) => BeatmapSet.reduced(beatmapSet))
+  );
+
+module.exports.adjustAllRankDates = adjustAllRankDates;
 module.exports.checkEvents = checkEvents;
 module.exports.JSONToBeatmapSets = JSONToBeatmapSets;
+module.exports.reduceQualifiedMaps = reduceQualifiedMaps;

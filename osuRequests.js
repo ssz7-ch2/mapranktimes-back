@@ -1,6 +1,6 @@
 const axios = require("axios");
 const { BeatmapSet, MapEvent } = require("./beatmap");
-const { DAY } = require("./utils/timeConstants");
+const { DAY, MINUTE } = require("./utils/timeConstants");
 
 require("dotenv").config();
 
@@ -47,7 +47,7 @@ const getQualifiedMaps = async (accessToken) => {
   let page = 1;
   while (true) {
     const data = await axiosGet(
-      `https://osu.ppy.sh/api/v2/beatmapsets/search?m=0&s=qualified&sort=ranked_asc&nsfw=true&page=${page}`,
+      `https://osu.ppy.sh/api/v2/beatmapsets/search?s=qualified&sort=ranked_asc&nsfw=true&page=${page}`,
       accessToken
     );
 
@@ -55,30 +55,38 @@ const getQualifiedMaps = async (accessToken) => {
     if (data.beatmapsets.length < 50) break;
     page++;
   }
+  if (process.env.DEVELOPMENT && process.env.MAPS_COUNT) {
+    dataList.splice(parseInt(process.env.MAPS_COUNT));
+  }
 
-  const qualifiedMaps = [];
+  const qualifiedMaps = [[], [], [], []];
   for (const item of dataList) {
     const beatmapSet = new BeatmapSet(item);
 
     await beatmapSet.getQueueTime();
 
-    qualifiedMaps.push(beatmapSet);
+    qualifiedMaps[beatmapSet.mode].push(beatmapSet);
   }
 
   return qualifiedMaps;
 };
 
 const getRankedMaps = async (accessToken) => {
+  // one request since it's highly unlikely that more than 50 maps are ranked in one day
   const data = await axiosGet(
-    `https://osu.ppy.sh/api/v2/beatmapsets/search?m=0&s=ranked&nsfw=true&q=ranked>${Math.floor(
-      (Date.now() - DAY) / 1000
+    `https://osu.ppy.sh/api/v2/beatmapsets/search?s=ranked&nsfw=true&q=ranked>${Math.floor(
+      (Date.now() - (DAY + 60 * MINUTE)) / 1000
     )}`,
     accessToken
   );
-  return data.beatmapsets.map((beatmapSet) => new BeatmapSet(beatmapSet)).reverse();
-  // data.beatmapsets.forEach(beatmapSet => {
-  //   // separate into different modes
-  // })
+
+  // splitting into modes is easier to manage
+  const rankedMaps = [[], [], [], []];
+  data.beatmapsets.reverse().forEach((beatmapSetData) => {
+    const beatmapSet = new BeatmapSet(beatmapSetData);
+    rankedMaps[beatmapSet.mode].push(beatmapSet);
+  });
+  return rankedMaps;
 };
 
 const getEventsAfter = async (accessToken, lastEventId) => {
@@ -87,9 +95,12 @@ const getEventsAfter = async (accessToken, lastEventId) => {
   const newEvents = [];
   const newEventIds = [];
   let newLastEventId;
+
+  const LIMIT = 5;
+
   while (true) {
     const data = await axiosGet(
-      `https://osu.ppy.sh/api/v2/beatmapsets/events?types[]=qualify&types[]=rank&types[]=disqualify&limit=5&page=${page}`,
+      `https://osu.ppy.sh/api/v2/beatmapsets/events?types[]=qualify&types[]=rank&types[]=disqualify&limit=${LIMIT}&page=${page}`,
       accessToken
     );
     newLastEventId ??= data.events[0].id;
@@ -100,27 +111,9 @@ const getEventsAfter = async (accessToken, lastEventId) => {
       // skip duplicates caused by timeout
       if (newEventIds.includes(event.id)) continue;
 
-      if (event.type == "qualify") {
-        // use api v1 to decrease data usage (~30KB for v2 vs ~2KB for v1)
-        const data = await axiosGet(
-          `https://osu.ppy.sh/api/get_beatmaps?k=${process.env.API_KEY}&m=0&s=${event.beatmapset.id}&limit=1`
-        );
-        if (data.length > 0) newEvents.push(new MapEvent(event));
-
-        // api v2
-        // const data = await axiosGet(
-        //   `https://osu.ppy.sh/api/v2/beatmapsets/${event.beatmapset.id}`,
-        //   accessToken
-        // );
-        // if (data.beatmaps.filter((beatmap) => beatmap.mode === "osu").length > 0)
-        //   newEvents.push(new MapEvent(event));
-      } else {
-        newEvents.push(new MapEvent(event));
-      }
-
-      apiCalls++;
-
+      newEvents.push(new MapEvent(event));
       newEventIds.push(event.id);
+      apiCalls++;
     }
     if (apiCalls > 40) {
       await new Promise((resolve) => setTimeout(resolve, 60000));
