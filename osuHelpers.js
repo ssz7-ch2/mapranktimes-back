@@ -29,6 +29,7 @@ const adjustRankDates = (qualifiedMaps, rankedMaps, start = 0) => {
     qualifiedMap.rankDateEarly = new Date(Math.max(qualifiedMap.queueDate.getTime(), compareDate)); // unrounded rankDate
 
     // don't calculate probability for maps using rounded compare date
+    qualifiedMap.probability = null;
     if (
       qualifiedMap.queueDate.getTime() > compareDate ||
       i < rankedMaps.length + config.RANK_PER_DAY

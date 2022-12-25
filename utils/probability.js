@@ -17,6 +17,4 @@ const probabilityAfter = (seconds, beatmapSets = 0) => {
   return sum / 4;
 };
 
-console.log(probabilityAfter(60));
-
 module.exports.probabilityAfter = probabilityAfter;
