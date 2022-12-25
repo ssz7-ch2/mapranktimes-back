@@ -169,7 +169,7 @@ const setUp = async () => {
             ? rankQueue[0].rankDateEarly
             : rankQueue[0].rankDate;
           // increase check duration if maps in other modes
-          const checkDuration = (8 + rankQueue.length * 2) * MINUTE;
+          const checkDuration = Math.min(8 + rankQueue.length * 2, 12) * MINUTE;
           if (currDate >= earliestRankDate) {
             const repeats = Math.ceil(checkDuration / interval);
             setIntervalRep(async () => await sendEvent(), interval, repeats);
