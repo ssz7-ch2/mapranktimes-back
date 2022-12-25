@@ -5,7 +5,6 @@
     "cors": "^2.8.5",
     "dotenv": "^16.0.2",
     "express": "^4.18.1",
-    "itertools": "^1.7.1",
     "node-schedule": "^2.1.0"
   },
   "name": "backend",
