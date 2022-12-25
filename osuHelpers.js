@@ -55,12 +55,12 @@ const adjustRankDates = (qualifiedMaps, rankedMaps, start = 0) => {
               roundMinutes(beatmapSet.rankDate.getTime(), true) === qualifiedMap.rankDate.getTime()
           )
       ) {
-        qualifiedMap.rankDateEarly = qualifiedMap.rankDate;
-        qualifiedMap.rankEarly = false;
-        qualifiedMap.probability = 0;
         qualifiedMap.rankDate = new Date(
           qualifiedMap.rankDate.getTime() + config.RANK_INTERVAL * MINUTE
         );
+        qualifiedMap.rankDateEarly = qualifiedMap.rankDate;
+        qualifiedMap.rankEarly = false;
+        qualifiedMap.probability = 0;
       }
     }
   }

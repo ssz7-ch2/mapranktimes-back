@@ -72,6 +72,7 @@ class BeatmapSet {
     const r = {
       id: beatmapSet.id,
       rd: beatmapSet.rankDate.getTime() / 1000,
+      rde: beatmapSet.rankDateEarly.getTime() / 1000,
       a: beatmapSet.artist,
       t: beatmapSet.title,
       m: beatmapSet.mapper,
@@ -89,7 +90,6 @@ class BeatmapSet {
       re: beatmapSet.rankEarly,
       p: beatmapSet.probability,
     };
-    if (beatmapSet.rankEarly) r["rde"] = beatmapSet.rankDateEarly.getTime() / 1000;
     return r;
   }
 }
