@@ -12,7 +12,6 @@ const { adjustAllRankDates, checkEvents, reduceQualifiedMaps } = require("./osuH
 const { loadAppData, saveAppData } = require("./storage");
 const config = require("./config");
 const { MINUTE } = require("./utils/timeConstants");
-const { BeatmapSet } = require("./beatmap");
 
 app.use(cors());
 app.use(express.static("public"));
@@ -121,13 +120,13 @@ const setUp = async () => {
       if (appData.accessToken === null || Date.now() >= appData.expireDate) {
         await setToken();
       }
-      await checkEvents(appData);
+      await checkEvents(appData, 50);
     });
 
     if (error) {
       await initialRun();
-      await saveAppData(appData);
-    }
+      if (process.env.RESET_STORE) await saveAppData(appData);
+    } else if (process.env.UPDATE_STORE) await saveAppData(appData);
   }
 
   console.log(new Date().toISOString(), "- sending data to client");
@@ -244,8 +243,10 @@ app.get("/beatmapsets", (req, res) => {
     });
   } else {
     res.status(200).json(
-      appData.qualifiedMaps.map((beatmapSets) =>
-        beatmapSets.map((beatmapSet) => {
+      appData.qualifiedMaps
+        .flat()
+        .sort((a, b) => a.rankDateEarly - b.rankDateEarly)
+        .map((beatmapSet) => {
           return {
             id: beatmapSet.id,
             artist: beatmapSet.artist,
@@ -262,7 +263,6 @@ app.get("/beatmapsets", (req, res) => {
             }),
           };
         })
-      )
     );
   }
 });

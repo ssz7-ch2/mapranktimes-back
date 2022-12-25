@@ -89,18 +89,16 @@ const getRankedMaps = async (accessToken) => {
   return rankedMaps;
 };
 
-const getEventsAfter = async (accessToken, lastEventId) => {
+const getEventsAfter = async (accessToken, lastEventId, limit = 5) => {
   let page = 1;
   let apiCalls = 0;
   const newEvents = [];
   const newEventIds = [];
   let newLastEventId;
 
-  const LIMIT = 5;
-
   while (true) {
     const data = await axiosGet(
-      `https://osu.ppy.sh/api/v2/beatmapsets/events?types[]=qualify&types[]=rank&types[]=disqualify&limit=${LIMIT}&page=${page}`,
+      `https://osu.ppy.sh/api/v2/beatmapsets/events?types[]=qualify&types[]=rank&types[]=disqualify&limit=${limit}&page=${page}`,
       accessToken
     );
     newLastEventId ??= data.events[0].id;

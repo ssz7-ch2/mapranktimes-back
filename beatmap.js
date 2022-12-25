@@ -19,7 +19,7 @@ class BeatmapSet {
             .sort((a, b) => (b.stars < a.stars ? 1 : -1))
         : null;
     this.rankEarly = false;
-    this.probability = 0;
+    this.probability = null;
     this.mode = Math.min(...beatmaps.map((beatmap) => beatmap.mode_int));
   }
 
@@ -83,6 +83,7 @@ class BeatmapSet {
           l: beatmap.len,
           v: beatmap.ver,
           sr: beatmap.stars,
+          m: beatmap.mode,
         };
       }),
       re: beatmapSet.rankEarly,
