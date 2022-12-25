@@ -56,14 +56,8 @@ const adjustRankDates = (qualifiedMaps, rankedMaps, start = 0) => {
           )
       ) {
         qualifiedMap.rankDateEarly = qualifiedMap.rankDate;
-        // if (combined[i - 1].rankEarly) {
-        //   // for this scenenario, rankEarly is dependent on the previous map being ranked early
-        //   qualifiedMap.probability = probabilityAfter(
-        //     intervalTimeDelta(combined[i - 1].rankDateEarly),
-        //     config.RANK_PER_RUN - 1
-        //   );
-        //   qualifiedMap.rankEarly = qualifiedMap.probability >= 0.01;
-        // }
+        qualifiedMap.rankEarly = false;
+        qualifiedMap.probability = 0;
         qualifiedMap.rankDate = new Date(
           qualifiedMap.rankDate.getTime() + config.RANK_INTERVAL * MINUTE
         );
