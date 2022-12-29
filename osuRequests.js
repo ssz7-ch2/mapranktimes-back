@@ -101,8 +101,8 @@ const getEventsAfter = async (accessToken, lastEventId, limit = 5) => {
       `https://osu.ppy.sh/api/v2/beatmapsets/events?types[]=qualify&types[]=rank&types[]=disqualify&limit=${limit}&page=${page}`,
       accessToken
     );
-    newLastEventId ??= data.events[0].id;
     apiCalls++;
+    newLastEventId ??= data.events[0].id;
     for (const event of data.events) {
       if (event.id == lastEventId) return [newEvents.reverse(), newLastEventId];
 
@@ -111,9 +111,8 @@ const getEventsAfter = async (accessToken, lastEventId, limit = 5) => {
 
       newEvents.push(new MapEvent(event));
       newEventIds.push(event.id);
-      apiCalls++;
     }
-    if (apiCalls > 40) {
+    if (apiCalls > 30) {
       await new Promise((resolve) => setTimeout(resolve, 60000));
       apiCalls = 0;
     }
