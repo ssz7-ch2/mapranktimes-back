@@ -8,7 +8,12 @@ const {
 const app = express();
 const cors = require("cors");
 const schedule = require("node-schedule");
-const { adjustAllRankDates, checkEvents, reduceQualifiedMaps } = require("./osuHelpers");
+const {
+  adjustAllRankDates,
+  checkEvents,
+  reduceQualifiedMaps,
+  calcEarlyProbability,
+} = require("./osuHelpers");
 const { loadAppData, saveAppData } = require("./storage");
 const config = require("./config");
 const { MINUTE } = require("./utils/timeConstants");
@@ -38,6 +43,13 @@ const setToken = async () => {
   console.log(
     new Date().toISOString(),
     `- new accessToken (expires ${new Date(appData.expireDate).toISOString()})`
+  );
+};
+
+const sendData = () => {
+  console.log(new Date().toISOString(), "- sending data to client");
+  clients.forEach((client) =>
+    client.res.write(`data: ${JSON.stringify(reduceQualifiedMaps(appData.qualifiedMaps))}\n\n`)
   );
 };
 
@@ -71,10 +83,7 @@ const sendEvent = async () => {
     return rankQueue.length === 0;
   }
 
-  console.log(new Date().toISOString(), "- sending data to client");
-  clients.forEach((client) =>
-    client.res.write(`data: ${JSON.stringify(reduceQualifiedMaps(appData.qualifiedMaps))}\n\n`)
-  );
+  sendData();
 
   // remove from queue if map is ranked
   rankQueue = rankQueue.filter((queueSet) =>
@@ -129,10 +138,7 @@ const setUp = async () => {
     } else if (process.env.UPDATE_STORE) await saveAppData(appData);
   }
 
-  console.log(new Date().toISOString(), "- sending data to client");
-  clients.forEach((client) =>
-    client.res.write(`data: ${JSON.stringify(reduceQualifiedMaps(appData.qualifiedMaps))}\n\n`)
-  );
+  sendData();
 
   schedule.scheduleJob("*/5 * * * *", async () => {
     try {
@@ -148,17 +154,11 @@ const setUp = async () => {
         rankQueue.splice(0, rankQueue.length);
 
         // get mapsets that could be ranked
-        // TODO: for each mode
-        // rankQueue = [[mode, beatmapset], ...] sort by queueDate
-
         appData.qualifiedMaps.forEach((beatmapSets) => {
           for (let i = 0; i < Math.min(config.RANK_PER_RUN, beatmapSets.length); i++) {
-            if (
-              compareDate >=
-              (beatmapSets[i].rankEarly ? beatmapSets[i].rankDateEarly : beatmapSets[i].rankDate)
-            )
+            if (compareDate >= beatmapSets[i].rankDateEarly) {
               rankQueue.push(beatmapSets[i]);
-            else break;
+            } else break;
           }
         });
 
@@ -190,7 +190,30 @@ const setUp = async () => {
 
       //#endregion RANK INTERVAL
 
-      await sendEvent();
+      let update = false;
+      if (currDate.getUTCMinutes() % 10 === 0) {
+        appData.qualifiedMaps.forEach((beatmapSets) => {
+          for (let i = 0; i < Math.min(config.RANK_PER_RUN, beatmapSets.length); i++) {
+            if (currDate >= beatmapSets[i].rankDateEarly) {
+              if (beatmapSets[i].probability > config.SPLIT) update = true;
+              beatmapSets[i].probability = 0;
+            }
+          }
+        });
+      }
+
+      let newEvents = [];
+      try {
+        //// newEvents = await checkEvents(appData);
+      } catch (error) {
+        console.log(new Date().toISOString(), "- failed to get new events");
+        console.log(error);
+      }
+      if (newEvents.length > 0) {
+        sendData();
+      } else if (update) {
+        if (calcEarlyProbability(appData.qualifiedMaps, config.RANK_PER_RUN)) sendData();
+      }
 
       // update google storage twice per day
       if (

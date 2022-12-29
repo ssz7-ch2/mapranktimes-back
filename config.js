@@ -5,4 +5,5 @@ module.exports = {
   RANK_INTERVAL: 20, // minutes
   DELAY_MIN: 5,
   DELAY_MAX: 120,
+  SPLIT: 0.5,
 };
