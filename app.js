@@ -109,7 +109,7 @@ const initialRun = async () => {
 
 // set up appData
 const setUp = async () => {
-  if (process.env.RESET) {
+  if (process.env.RESET_DATA) {
     await initialRun();
     if (process.env.RESET_STORE) await saveAppData(appData);
   } else {
@@ -208,7 +208,7 @@ const setUp = async () => {
 
       // update google storage twice per day
       if (
-        !process.env.DEVELOPMENT &&
+        !process.env.DEVELOPMENT_STORE &&
         currDate.getUTCHours() % 12 === 0 &&
         currDate.getUTCMinutes() === 0
       ) {

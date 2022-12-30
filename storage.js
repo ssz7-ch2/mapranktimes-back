@@ -5,7 +5,7 @@ require("dotenv").config();
 
 const storage = new Storage({ keyFilename: "google-cloud-key.json" });
 const bucket = storage.bucket("mapranktimes");
-const fileName = process.env.DEVELOPMENT ? "appDataDev.json" : "appData.json";
+const fileName = process.env.DEVELOPMENT_STORE ? "appDataDev.json" : "appData.json";
 
 const saveAppData = async (appData) => {
   const file = bucket.file(fileName);

@@ -55,7 +55,7 @@ const getQualifiedMaps = async (accessToken) => {
     if (data.beatmapsets.length < 50) break;
     page++;
   }
-  if (process.env.DEVELOPMENT && process.env.MAPS_COUNT) {
+  if (process.env.DEVELOPMENT_STORE && process.env.MAPS_COUNT) {
     dataList.splice(parseInt(process.env.MAPS_COUNT));
   }
 
