@@ -1,9 +1,11 @@
 const { Storage } = require("@google-cloud/storage");
 const { JSONToBeatmapSets } = require("./osuHelpers");
 
+require("dotenv").config();
+
 const storage = new Storage({ keyFilename: "google-cloud-key.json" });
 const bucket = storage.bucket("mapranktimes");
-const fileName = "appData.json";
+const fileName = process.env.DEVELOPMENT ? "appDataDev.json" : "appData.json";
 
 const saveAppData = async (appData) => {
   const file = bucket.file(fileName);
@@ -23,12 +25,15 @@ const loadAppData = async (appData, callback) => {
     appData.accessToken = storedData.accessToken;
     appData.expireDate = new Date(storedData.expireDate);
     appData.lastEventId = storedData.lastEventId;
-    appData.rankedMaps = JSONToBeatmapSets(storedData.rankedMaps);
-    appData.qualifiedMaps = JSONToBeatmapSets(storedData.qualifiedMaps);
+    appData.rankedMaps = storedData.rankedMaps;
+    appData.qualifiedMaps = storedData.qualifiedMaps;
+    appData.rankedMaps.forEach((mode) => JSONToBeatmapSets(mode));
+    appData.qualifiedMaps.forEach((mode) => JSONToBeatmapSets(mode));
     console.log(new Date().toISOString(), "- loaded appData from google storage");
     await callback();
   } catch (error) {
     console.log(new Date().toISOString(), "- failed to get stored data");
+    console.log(error);
     return error;
   }
 };

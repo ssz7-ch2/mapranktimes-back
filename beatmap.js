@@ -16,19 +16,19 @@ class BeatmapSet {
       status == "qualified" // only set beatmaps if mapset is qualified
         ? beatmaps
             .map((beatmap) => new Beatmap(beatmap))
-            .filter((beatmap) => beatmap.mode === 0)
             .sort((a, b) => (b.stars < a.stars ? 1 : -1))
         : null;
     this.rankEarly = false;
-    this.probability = 0;
+    this.probability = null;
+    this.mode = Math.min(...beatmaps.map((beatmap) => beatmap.mode_int));
   }
 
   static lastRequestDate = 0;
 
   async getQueueTime() {
     // avoid getting rate limited :)
-    if (Date.now() - BeatmapSet.lastRequestDate < 1000)
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+    if (Date.now() - BeatmapSet.lastRequestDate < 1500)
+      await new Promise((resolve) => setTimeout(resolve, 1500));
     console.log(
       new Date().toISOString(),
       `- calculating queueDate for ${this.id} ${this.artist} - ${this.title}`
@@ -68,27 +68,28 @@ class BeatmapSet {
     }
   }
 
-  static reduced(beatmap) {
+  static reduced(beatmapSet) {
     const r = {
-      id: beatmap.id,
-      rd: beatmap.rankDate.getTime() / 1000,
-      a: beatmap.artist,
-      t: beatmap.title,
-      m: beatmap.mapper,
-      mi: beatmap.mapperId,
-      b: beatmap.beatmaps.map((beatmap) => {
+      id: beatmapSet.id,
+      rd: beatmapSet.rankDate.getTime() / 1000,
+      rde: beatmapSet.rankDateEarly.getTime() / 1000,
+      a: beatmapSet.artist,
+      t: beatmapSet.title,
+      m: beatmapSet.mapper,
+      mi: beatmapSet.mapperId,
+      b: beatmapSet.beatmaps.map((beatmap) => {
         return {
           id: beatmap.id,
           s: beatmap.spin,
           l: beatmap.len,
           v: beatmap.ver,
           sr: beatmap.stars,
+          m: beatmap.mode,
         };
       }),
-      re: beatmap.rankEarly,
-      p: beatmap.probability,
+      re: beatmapSet.rankEarly,
+      p: beatmapSet.probability,
     };
-    if (beatmap.rankEarly) r["rde"] = beatmap.rankDateEarly.getTime() / 1000;
     return r;
   }
 }
