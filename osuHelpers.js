@@ -42,7 +42,10 @@ const adjustRankDates = (qualifiedMaps, rankedMaps, start = 0) => {
 
     if (i - config.RANK_PER_RUN >= 0) {
       // fix date for maps after the adjustment below
-      if (qualifiedMap.rankDate < combined[i - 1].rankDate) {
+      if (
+        combined[i - 1].queueDate !== null &&
+        qualifiedMap.rankDate.getTime() < roundMinutes(combined[i - 1].rankDate.getTime(), true)
+      ) {
         qualifiedMap.rankDate = new Date(roundMinutes(combined[i - 1].rankDate.getTime(), true));
         qualifiedMap.rankDateEarly = qualifiedMap.rankDate;
         qualifiedMap.rankEarly = false;
@@ -59,9 +62,21 @@ const adjustRankDates = (qualifiedMaps, rankedMaps, start = 0) => {
               roundMinutes(qualifiedMap.rankDateEarly.getTime(), true)
           )
       ) {
-        qualifiedMap.rankDate = new Date(
-          roundMinutes(combined[i - 1].rankDate.getTime(), true) + config.RANK_INTERVAL * MINUTE
-        );
+        if (
+          combined
+            .slice(i - config.RANK_PER_RUN, i)
+            .every(
+              (beatmapSet) =>
+                roundMinutes(beatmapSet.rankDate.getTime(), true) ===
+                roundMinutes(combined[i - config.RANK_PER_RUN].rankDate.getTime(), true)
+            )
+        ) {
+          qualifiedMap.rankDate = new Date(
+            roundMinutes(combined[i - 1].rankDate.getTime(), true) + config.RANK_INTERVAL * MINUTE
+          );
+        } else {
+          qualifiedMap.rankDate = new Date(roundMinutes(combined[i - 1].rankDate.getTime(), true));
+        }
         qualifiedMap.rankDateEarly = qualifiedMap.rankDate;
         qualifiedMap.rankEarly = false;
         qualifiedMap.probability = 0;
@@ -70,39 +85,41 @@ const adjustRankDates = (qualifiedMaps, rankedMaps, start = 0) => {
   }
 };
 
-const calcEarlyProbability = (qualifiedMaps, limit = null) => {
+const calcEarlyProbability = (qualifiedMaps, limit = Number.MAX_VALUE) => {
   const rankDates = {};
   qualifiedMaps.forEach((beatmapSets) => {
-    for (let i = 0; i < Math.min(limit || beatmapSets.length, beatmapSets.length); i++) {
+    for (const beatmapSet of beatmapSets) {
       // assume map will be ranked early if probability > SPLIT to simplify calculations
       const key =
-        beatmapSets[i].probability > config.SPLIT
-          ? roundMinutes(beatmapSets[i].rankDateEarly.getTime(), true)
-          : beatmapSets[i].rankDate.getTime();
+        beatmapSet.probability > config.SPLIT
+          ? roundMinutes(beatmapSet.rankDateEarly.getTime(), true)
+          : beatmapSet.rankDate.getTime();
+      if (key > limit) break;
       if (!(key in rankDates)) {
         rankDates[key] = [0, 0, 0, 0];
       }
-      rankDates[key][beatmapSets[i].mode] += 1;
+      rankDates[key][beatmapSet.mode] += 1;
     }
   });
 
   let changed = false;
   qualifiedMaps.forEach((beatmapSets) => {
-    for (let i = 0; i < Math.min(limit || beatmapSets.length, beatmapSets.length); i++) {
+    for (const beatmapSet of beatmapSets) {
+      const key = roundMinutes(beatmapSet.rankDateEarly.getTime(), true);
+      if (key > limit) break;
       if (
-        beatmapSets[i].probability !== null &&
-        beatmapSets[i].rankDateEarly.getTime() !== beatmapSets[i].rankDate.getTime()
+        beatmapSet.probability !== null &&
+        beatmapSet.rankDateEarly.getTime() !== beatmapSet.rankDate.getTime()
       ) {
-        const key = roundMinutes(beatmapSets[i].rankDateEarly.getTime(), true);
-        const otherModes = rankDates[key]?.filter((_, mode) => mode != beatmapSets[i].mode);
+        const otherModes = rankDates[key]?.filter((_, mode) => mode != beatmapSet.mode);
         const probability = probabilityAfter(
-          intervalTimeDelta(beatmapSets[i].rankDateEarly),
+          intervalTimeDelta(beatmapSet.rankDateEarly),
           otherModes
         );
-        if (beatmapSets[i].probability !== probability) changed = true;
-        beatmapSets[i].probability = probability;
+        if (beatmapSet.probability.toFixed(4) != probability.toFixed(4)) changed = true;
+        beatmapSet.probability = probability;
       }
-      beatmapSets[i].rankEarly = beatmapSets[i].probability >= 0.01; // about the same as >= 6min 6s
+      beatmapSet.rankEarly = beatmapSet.probability >= 0.01; // about the same as >= 6min 6s
     }
   });
   return changed;
@@ -156,6 +173,7 @@ const rankEvent = async (qualifiedMaps, rankedMaps, accessToken, mapEvent) => {
       }`
     );
     beatmapSetTarget.rankDate = mapEvent.createdAt;
+    beatmapSetTarget.queueDate = null;
     rankedMaps[beatmapSetTarget.mode].push(beatmapSetTarget);
     if (rankedMaps[beatmapSetTarget.mode].length > config.RANK_PER_DAY)
       rankedMaps[beatmapSetTarget.mode].shift(); // only keep necessary maps

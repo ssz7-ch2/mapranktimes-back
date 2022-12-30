@@ -17,6 +17,7 @@ const {
 const { loadAppData, saveAppData } = require("./storage");
 const config = require("./config");
 const { MINUTE } = require("./utils/timeConstants");
+const { debounce } = require("lodash");
 
 app.use(cors());
 app.use(express.static("public"));
@@ -55,14 +56,8 @@ const sendData = () => {
 
 //#region CRONJOB functions
 
-let running = false;
-
-// return true if rankQueue is empty
-const sendEvent = async () => {
-  // don't run more than one update simultaneously
-  if (running) return false;
-
-  running = true;
+// return true if setIntervalRep should stop running
+const _sendEvent = async () => {
   if (appData.accessToken === null || Date.now() >= appData.expireDate) {
     await setToken();
   }
@@ -74,14 +69,10 @@ const sendEvent = async () => {
     console.log(new Date().toISOString(), "- failed to get new events");
     console.log(error);
     // stop interval on error
-    running = false;
     return true;
   }
 
-  if (newEvents.length === 0) {
-    running = false;
-    return rankQueue.length === 0;
-  }
+  if (newEvents.length === 0) return rankQueue.length === 0;
 
   sendData();
 
@@ -89,20 +80,17 @@ const sendEvent = async () => {
   rankQueue = rankQueue.filter((queueSet) =>
     appData.qualifiedMaps[queueSet.mode].some((beatmapSet) => beatmapSet.id == queueSet.id)
   );
-
-  running = false;
   return rankQueue.length === 0;
 };
+const sendEvent = debounce(_sendEvent, 1000);
 
-// TODO: add condition
 const setIntervalRep = async (callback, interval, repeats, count = 0) => {
-  // let endInterval = false;
-  // if (condition()) endInterval = await callback();
   const endInterval = await callback();
 
-  if (++count === repeats || endInterval) return;
+  if (++count >= repeats || endInterval) return;
 
-  setTimeout(() => setIntervalRep(callback, interval, repeats, count), interval);
+  await new Promise((resolve) => setTimeout(resolve, interval));
+  setIntervalRep(callback, interval, repeats, count);
 };
 
 //#endregion CRONJOB functions
@@ -195,8 +183,13 @@ const setUp = async () => {
         appData.qualifiedMaps.forEach((beatmapSets) => {
           for (let i = 0; i < Math.min(config.RANK_PER_RUN, beatmapSets.length); i++) {
             if (currDate >= beatmapSets[i].rankDateEarly) {
-              if (beatmapSets[i].probability > config.SPLIT) update = true;
-              beatmapSets[i].probability = 0;
+              if (beatmapSets[i].probability > config.SPLIT) {
+                const temp = beatmapSets[i].probability;
+                beatmapSets[i].probability = null;
+                if (calcEarlyProbability(appData.qualifiedMaps, beatmapSets[i].rankDate.getTime()))
+                  update = true;
+                beatmapSets[i].probability = temp;
+              }
             }
           }
         });
@@ -204,15 +197,13 @@ const setUp = async () => {
 
       let newEvents = [];
       try {
-        //// newEvents = await checkEvents(appData);
+        newEvents = await checkEvents(appData);
       } catch (error) {
         console.log(new Date().toISOString(), "- failed to get new events");
         console.log(error);
       }
-      if (newEvents.length > 0) {
+      if (newEvents.length > 0 || update) {
         sendData();
-      } else if (update) {
-        if (calcEarlyProbability(appData.qualifiedMaps, config.RANK_PER_RUN)) sendData();
       }
 
       // update google storage twice per day
