@@ -28,7 +28,7 @@ const getAccessToken = async () => {
     },
   });
 
-  return [data.access_token, Date.now() + (data.expires_in - 600) * 1000];
+  return [data.access_token, Date.now() + (data.expires_in - 3600) * 1000];
 };
 
 const getBeatmapSet = async (accessToken, beatmapSetId) => {
