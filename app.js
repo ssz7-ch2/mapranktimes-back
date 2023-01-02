@@ -136,7 +136,7 @@ const setUp = async () => {
 
       // check more often when a mapset is about to be ranked
       if (currDate.getUTCMinutes() % 20 === 0) {
-        const compareDate = new Date(currDate.getTime() + 8 * MINUTE); // 8 minutes should be enough for most mapsets
+        const compareDate = new Date(currDate.getTime() + 10 * MINUTE); // 10 minutes should be enough for almost every mapset
 
         // reset rankQueue
         rankQueue.splice(0, rankQueue.length);
@@ -144,35 +144,27 @@ const setUp = async () => {
         // get mapsets that could be ranked
         appData.qualifiedMaps.forEach((beatmapSets) => {
           for (let i = 0; i < Math.min(config.RANK_PER_RUN, beatmapSets.length); i++) {
-            if (compareDate >= beatmapSets[i].rankDateEarly) {
+            if (
+              currDate >= beatmapSets[i].rankDateEarly ||
+              (compareDate >= beatmapSets[i].rankDateEarly && beatmapSets[i].rankEarly)
+            ) {
               rankQueue.push(beatmapSets[i]);
             } else break;
           }
         });
 
-        const interval = 2000;
-
         if (rankQueue.length > 0) {
-          const earliestRankDate = rankQueue[0].rankEarly
-            ? rankQueue[0].rankDateEarly
-            : rankQueue[0].rankDate;
+          const interval = 2000;
+          const earliestRankDate = rankQueue[0].rankDateEarly;
           // increase check duration if maps in other modes
           const checkDuration = Math.min(8 + rankQueue.length * 2, 12) * MINUTE;
-          if (currDate >= earliestRankDate) {
-            const repeats = Math.ceil(checkDuration / interval);
-            setIntervalRep(async () => await sendEvent(), interval, repeats);
-          } else {
-            const repeats =
-              Math.ceil(
-                (currDate.getTime() + checkDuration - earliestRankDate.getTime()) / interval
-              ) + 1;
+          const repeats =
+            Math.ceil((checkDuration - Math.max(0, earliestRankDate - currDate)) / interval) + 1;
 
-            // don't start interval until after rankDateEarly
-            setTimeout(
-              () => setIntervalRep(async () => await sendEvent(), interval, repeats),
-              earliestRankDate - currDate
-            );
-          }
+          setTimeout(
+            () => setIntervalRep(sendEvent, interval, repeats),
+            Math.max(0, earliestRankDate - currDate)
+          );
         }
       }
 
