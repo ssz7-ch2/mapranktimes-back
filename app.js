@@ -193,6 +193,7 @@ const setUp = async () => {
       } catch (error) {
         console.log(new Date().toISOString(), "- failed to get new events");
         console.log(error);
+        if (error.response?.status === 401) await setToken();
       }
       if (newEvents.length > 0 || update) {
         sendData();
