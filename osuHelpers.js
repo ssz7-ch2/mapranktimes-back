@@ -206,48 +206,59 @@ const disqualifyEvent = (qualifiedMaps, rankedMaps, mapEvent) => {
   adjustRankDates(qualifiedMaps[beatmapSetTarget.mode], rankedMaps[beatmapSetTarget.mode], start);
 };
 
+let running = false;
+
 const checkEvents = async (appData, limit = 5) => {
-  let [newEvents, newLastEventId] = await getEventsAfter(
-    appData.accessToken,
-    appData.lastEventId,
-    limit
-  );
+  // prevent concurrent checkEvents from running
+  while (running) await new Promise((resolve) => setTimeout(resolve, 500));
+  running = true;
+  let newEvents = [];
+  try {
+    let newLastEventId;
+    [newEvents, newLastEventId] = await getEventsAfter(
+      appData.accessToken,
+      appData.lastEventId,
+      limit
+    );
 
-  for (const mapEvent of newEvents) {
-    if (mapEvent.type != "rank")
-      console.log(
-        new Date().toISOString(),
-        `- new ${mapEvent.type} event for beatmapset ${
-          mapEvent.beatmapSetId
-        } at ${mapEvent.createdAt.toISOString()}`
-      );
-    switch (mapEvent.type) {
-      case "rank":
-        await rankEvent(appData.qualifiedMaps, appData.rankedMaps, appData.accessToken, mapEvent);
-        appData.lastEventId = mapEvent.id;
-        break;
-      case "qualify":
-        await qualifyEvent(
-          appData.qualifiedMaps,
-          appData.rankedMaps,
-          appData.accessToken,
-          mapEvent
+    for (const mapEvent of newEvents) {
+      if (mapEvent.type != "rank")
+        console.log(
+          new Date().toISOString(),
+          `- new ${mapEvent.type} event for beatmapset ${
+            mapEvent.beatmapSetId
+          } at ${mapEvent.createdAt.toISOString()}`
         );
-        break;
-      case "disqualify":
-        disqualifyEvent(appData.qualifiedMaps, appData.rankedMaps, mapEvent);
-        break;
-      default:
-        break;
+      switch (mapEvent.type) {
+        case "rank":
+          await rankEvent(appData.qualifiedMaps, appData.rankedMaps, appData.accessToken, mapEvent);
+          appData.lastEventId = mapEvent.id;
+          break;
+        case "qualify":
+          await qualifyEvent(
+            appData.qualifiedMaps,
+            appData.rankedMaps,
+            appData.accessToken,
+            mapEvent
+          );
+          break;
+        case "disqualify":
+          disqualifyEvent(appData.qualifiedMaps, appData.rankedMaps, mapEvent);
+          break;
+        default:
+          break;
+      }
+      // in case of errors, only update to latest completed event
+      appData.lastEventId = mapEvent.id;
     }
-    // in case of errors, only update to latest completed event
-    appData.lastEventId = mapEvent.id;
+    if (newEvents.length > 0) calcEarlyProbability(appData.qualifiedMaps);
+
+    // if (newEvents.length === 0) console.log(new Date().toISOString(), "- no new events");
+
+    appData.lastEventId = newLastEventId;
+  } finally {
+    running = false;
   }
-  if (newEvents.length > 0) calcEarlyProbability(appData.qualifiedMaps);
-
-  // if (newEvents.length === 0) console.log(new Date().toISOString(), "- no new events");
-
-  appData.lastEventId = newLastEventId;
   return newEvents;
 };
 
