@@ -136,6 +136,13 @@ const setUp = async () => {
 
       // check more often when a mapset is about to be ranked
       if (currDate.getUTCMinutes() % 20 === 0) {
+        // force reset for Render
+        if (process.env.RESET_DATA) {
+          await initialRun();
+          if (process.env.RESET_STORE) await saveAppData(appData);
+          return;
+        }
+
         const compareDate = new Date(currDate.getTime() + 10 * MINUTE); // 10 minutes should be enough for almost every mapset
 
         // reset rankQueue
