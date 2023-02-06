@@ -48,7 +48,8 @@ class BeatmapSet {
 
         events.forEach((event) => {
           if (event.type === "qualify") startDate = event.time;
-          else if (event.type === "disqualify") previousQueueDuration += event.time - startDate;
+          else if (event.type === "disqualify" && startDate != null)
+            previousQueueDuration += event.time - startDate;
         });
 
         // all maps need to be qualified for at least 7 days
