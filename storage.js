@@ -1,5 +1,6 @@
 const { Storage } = require("@google-cloud/storage");
 const { JSONToBeatmapSets } = require("./osuHelpers");
+const { getRankedMapsFull } = require("./osuRequests");
 
 require("dotenv").config();
 
@@ -26,6 +27,7 @@ const loadAppData = async (appData, callback) => {
     appData.expireDate = new Date(storedData.expireDate);
     appData.lastEventId = storedData.lastEventId;
     appData.rankedMaps = storedData.rankedMaps;
+    appData.rankedMapsFull = storedData.rankedMapsFull;
     appData.qualifiedMaps = storedData.qualifiedMaps;
     appData.rankedMaps.forEach((mode) => JSONToBeatmapSets(mode));
     appData.qualifiedMaps.forEach((mode) => JSONToBeatmapSets(mode));

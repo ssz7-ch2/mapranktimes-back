@@ -12,14 +12,11 @@ class BeatmapSet {
     this.title = title;
     this.mapper = creator;
     this.mapperId = user_id;
-    this.beatmaps =
-      status == "qualified" // only set beatmaps if mapset is qualified
-        ? beatmaps
-            .map((beatmap) => new Beatmap(beatmap))
-            .sort((a, b) => (b.stars < a.stars ? 1 : -1))
-        : null;
+    this.beatmaps = beatmaps
+      .map((beatmap) => new Beatmap(beatmap))
+      .sort((a, b) => (b.stars < a.stars ? 1 : -1));
     this.rankEarly = false;
-    this.probability = null;
+    this.probability = status == "qualified" ? null : 0;
     this.mode = Math.min(...beatmaps.map((beatmap) => beatmap.mode_int));
   }
 
@@ -73,7 +70,10 @@ class BeatmapSet {
     const r = {
       id: beatmapSet.id,
       rd: beatmapSet.rankDate.getTime() / 1000,
-      rde: beatmapSet.rankDateEarly.getTime() / 1000,
+      rde:
+        beatmapSet.rankDateEarly !== null
+          ? beatmapSet.rankDateEarly.getTime() / 1000
+          : beatmapSet.rankDate.getTime() / 1000,
       a: beatmapSet.artist,
       t: beatmapSet.title,
       m: beatmapSet.mapper,

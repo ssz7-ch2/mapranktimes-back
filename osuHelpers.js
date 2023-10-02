@@ -1,4 +1,9 @@
-const { getRankedMaps, getBeatmapSet, getEventsAfter } = require("./osuRequests");
+const {
+  getRankedMaps,
+  getBeatmapSet,
+  getEventsAfter,
+  getRankedMapsFull,
+} = require("./osuRequests");
 const { BeatmapSet } = require("./beatmap");
 const config = require("./config");
 const { MINUTE, DAY } = require("./utils/timeConstants");
@@ -143,7 +148,7 @@ const removeMapFromQualified = (qualifiedMaps, mapEvent) => {
   return [];
 };
 
-const rankEvent = async (qualifiedMaps, rankedMaps, accessToken, mapEvent) => {
+const rankEvent = async (qualifiedMaps, rankedMaps, rankedMapsFull, accessToken, mapEvent) => {
   // in case ranked out of order? can this even happen idk
   const [beatmapSetTarget, start] = removeMapFromQualified(qualifiedMaps, mapEvent);
 
@@ -158,6 +163,11 @@ const rankEvent = async (qualifiedMaps, rankedMaps, accessToken, mapEvent) => {
     rankedMaps.splice(0, rankedMaps.length);
     const updatedRankedMaps = await getRankedMaps(accessToken);
     rankedMaps.push(...updatedRankedMaps);
+
+    rankedMapsFull.splice(0, rankedMapsFull.length);
+    const updatedRankedMapsFull = await getRankedMapsFull(accessToken);
+    rankedMapsFull.concat(updatedRankedMapsFull);
+
     adjustAllRankDates(qualifiedMaps, rankedMaps);
   } else {
     console.log(
@@ -174,9 +184,14 @@ const rankEvent = async (qualifiedMaps, rankedMaps, accessToken, mapEvent) => {
     );
     beatmapSetTarget.rankDate = mapEvent.createdAt;
     beatmapSetTarget.queueDate = null;
+    beatmapSetTarget.probability = 0;
     rankedMaps[beatmapSetTarget.mode].push(beatmapSetTarget);
+    rankedMapsFull[beatmapSetTarget.mode].push(beatmapSetTarget);
+
     if (rankedMaps[beatmapSetTarget.mode].length > config.RANK_PER_DAY)
       rankedMaps[beatmapSetTarget.mode].shift(); // only keep necessary maps
+    if (rankedMapsFull[beatmapSetTarget.mode].length > config.RANKED_MAPS_LIMIT)
+      rankedMapsFull[beatmapSetTarget.mode].shift(); // only keep necessary maps
 
     // TODO: could be more efficient
     adjustRankDates(qualifiedMaps[beatmapSetTarget.mode], rankedMaps[beatmapSetTarget.mode], start);
@@ -235,7 +250,13 @@ const checkEvents = async (appData, limit = 5) => {
         );
       switch (mapEvent.type) {
         case "rank":
-          await rankEvent(appData.qualifiedMaps, appData.rankedMaps, appData.accessToken, mapEvent);
+          await rankEvent(
+            appData.qualifiedMaps,
+            appData.rankedMaps,
+            appData.rankedMapsFull,
+            appData.accessToken,
+            mapEvent
+          );
           appData.lastEventId = mapEvent.id;
           break;
         case "qualify":
@@ -281,8 +302,15 @@ const reduceQualifiedMaps = (qualifiedMaps) =>
     .sort((a, b) => a.rankDateEarly - b.rankDateEarly)
     .map((beatmapSet) => BeatmapSet.reduced(beatmapSet));
 
+const reduceRankedMaps = (rankedMaps) =>
+  rankedMaps
+    .flat()
+    .sort((a, b) => b.rankDate - a.rankDate)
+    .map((beatmapSet) => BeatmapSet.reduced(beatmapSet));
+
 module.exports.adjustAllRankDates = adjustAllRankDates;
 module.exports.checkEvents = checkEvents;
 module.exports.JSONToBeatmapSets = JSONToBeatmapSets;
 module.exports.reduceQualifiedMaps = reduceQualifiedMaps;
+module.exports.reduceRankedMaps = reduceRankedMaps;
 module.exports.calcEarlyProbability = calcEarlyProbability;

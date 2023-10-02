@@ -4,6 +4,7 @@ const {
   getLatestEvent,
   getRankedMaps,
   getQualifiedMaps,
+  getRankedMapsFull,
 } = require("./osuRequests");
 const app = express();
 const cors = require("cors");
@@ -13,6 +14,7 @@ const {
   checkEvents,
   reduceQualifiedMaps,
   calcEarlyProbability,
+  reduceRankedMaps,
 } = require("./osuHelpers");
 const { loadAppData, saveAppData } = require("./storage");
 const config = require("./config");
@@ -32,6 +34,7 @@ const appData = {
   expireDate: null,
   lastEventId: null,
   rankedMaps: [[], [], [], []],
+  rankedMapsFull: [[], [], [], []],
   qualifiedMaps: [[], [], [], []],
 };
 
@@ -101,6 +104,9 @@ const initialRun = async () => {
 
   appData.rankedMaps = await getRankedMaps(appData.accessToken);
   console.log(new Date().toISOString(), "- finished getting rankedMaps");
+  appData.rankedMapsFull = await getRankedMapsFull(appData.accessToken);
+  console.log(new Date().toISOString(), "- finished getting rankedMapsFull");
+
   appData.qualifiedMaps = await getQualifiedMaps(appData.accessToken);
   console.log(new Date().toISOString(), "- finished getting qualifiedMaps");
   adjustAllRankDates(appData.qualifiedMaps, appData.rankedMaps);
@@ -117,10 +123,17 @@ const setUp = async () => {
       if (appData.accessToken === null || Date.now() >= appData.expireDate) {
         await setToken();
       }
-      await checkEvents(appData, 50);
+      if (appData.rankedMapsFull == null) {
+        appData.rankedMapsFull = [[], [], [], []];
+        await checkEvents(appData, 50);
+        appData.rankedMapsFull = await getRankedMapsFull(appData.accessToken);
+      } else {
+        await checkEvents(appData, 50);
+      }
     });
 
     if (error) {
+      console.log(appData.rankedMapsFull);
       await initialRun();
       if (process.env.RESET_STORE) await saveAppData(appData);
     } else if (process.env.UPDATE_STORE) await saveAppData(appData);
@@ -296,6 +309,10 @@ app.get("/beatmapsets/:id", (req, res) => {
       }),
     });
   }
+});
+
+app.get("/ranked", (_, res) => {
+  res.status(200).json(reduceRankedMaps(appData.rankedMapsFull));
 });
 
 //#endregion ROUTES

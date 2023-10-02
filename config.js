@@ -6,4 +6,5 @@ module.exports = {
   DELAY_MIN: 5,
   DELAY_MAX: 120,
   SPLIT: 0.5,
+  RANKED_MAPS_LIMIT: 50,
 };

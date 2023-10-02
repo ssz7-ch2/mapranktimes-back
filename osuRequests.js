@@ -89,6 +89,31 @@ const getRankedMaps = async (accessToken) => {
   return rankedMaps;
 };
 
+const getRankedMapsFull = async (accessToken) => {
+  const dataList = [];
+  let page = 1;
+  while (true) {
+    const data = await axiosGet(
+      `https://osu.ppy.sh/api/v2/beatmapsets/search?s=ranked&nsfw=true&q=ranked>${Math.floor(
+        (Date.now() - (7 * DAY + 60 * MINUTE)) / 1000
+      )}&page=${page}`,
+      accessToken
+    );
+
+    dataList.push(...data.beatmapsets);
+    if (data.beatmapsets.length < 50) break;
+    page++;
+  }
+
+  // splitting into modes is easier to manage
+  const rankedMaps = [[], [], [], []];
+  dataList.reverse().forEach((beatmapSetData) => {
+    const beatmapSet = new BeatmapSet(beatmapSetData);
+    rankedMaps[beatmapSet.mode].push(beatmapSet);
+  });
+  return rankedMaps;
+};
+
 const getEventsAfter = async (accessToken, lastEventId, limit = 5) => {
   let page = 1;
   let apiCalls = 0;
@@ -132,5 +157,6 @@ module.exports.getAccessToken = getAccessToken;
 module.exports.getBeatmapSet = getBeatmapSet;
 module.exports.getQualifiedMaps = getQualifiedMaps;
 module.exports.getRankedMaps = getRankedMaps;
+module.exports.getRankedMapsFull = getRankedMapsFull;
 module.exports.getEventsAfter = getEventsAfter;
 module.exports.getLatestEvent = getLatestEvent;
