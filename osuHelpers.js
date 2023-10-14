@@ -166,7 +166,7 @@ const rankEvent = async (qualifiedMaps, rankedMaps, rankedMapsFull, accessToken,
 
     rankedMapsFull.splice(0, rankedMapsFull.length);
     const updatedRankedMapsFull = await getRankedMapsFull(accessToken);
-    rankedMapsFull.concat(updatedRankedMapsFull);
+    rankedMapsFull.push(...updatedRankedMapsFull);
 
     adjustAllRankDates(qualifiedMaps, rankedMaps);
   } else {

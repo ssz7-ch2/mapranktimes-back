@@ -30,6 +30,7 @@ const loadAppData = async (appData, callback) => {
     appData.rankedMapsFull = storedData.rankedMapsFull;
     appData.qualifiedMaps = storedData.qualifiedMaps;
     appData.rankedMaps.forEach((mode) => JSONToBeatmapSets(mode));
+    appData.rankedMapsFull.forEach((mode) => JSONToBeatmapSets(mode));
     appData.qualifiedMaps.forEach((mode) => JSONToBeatmapSets(mode));
     console.log(new Date().toISOString(), "- loaded appData from google storage");
     await callback();
