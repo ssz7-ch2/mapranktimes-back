@@ -133,7 +133,6 @@ const setUp = async () => {
     });
 
     if (error) {
-      console.log(appData.rankedMapsFull);
       await initialRun();
       if (process.env.RESET_STORE) await saveAppData(appData);
     } else if (process.env.UPDATE_STORE) await saveAppData(appData);
@@ -144,15 +143,6 @@ const setUp = async () => {
   schedule.scheduleJob("*/5 * * * *", async () => {
     try {
       const currDate = new Date();
-
-      // update unresolved mods every hour (at 50 min)
-      if (currDate.getUTCMinutes() % 50 === 0) {
-        for (const beatmapSets of appData.qualifiedMaps) {
-          for (const beatmapSet of beatmapSets) {
-            await beatmapSet.checkUnresolvedMod();
-          }
-        }
-      }
 
       //#region RANK INTERVAL
 
@@ -201,6 +191,17 @@ const setUp = async () => {
       //#endregion RANK INTERVAL
 
       let update = false;
+
+      // update unresolved mods every hour (at 50 min)
+      if (currDate.getUTCMinutes() % 50 === 0) {
+        for (const beatmapSets of appData.qualifiedMaps) {
+          for (const beatmapSet of beatmapSets) {
+            await beatmapSet.checkUnresolvedMod();
+          }
+        }
+        update = true;
+      }
+
       if (currDate.getUTCMinutes() % 10 === 0) {
         appData.qualifiedMaps.forEach((beatmapSets) => {
           for (let i = 0; i < Math.min(config.RANK_PER_RUN, beatmapSets.length); i++) {
