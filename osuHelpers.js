@@ -289,12 +289,14 @@ const checkEvents = async (appData, limit = 5) => {
 };
 
 // used when loading beatmapSets from JSON file intead of api
-const JSONToBeatmapSets = (beatmapSetsJSON) => {
-  beatmapSetsJSON.forEach((beatmapSet) => {
-    if (beatmapSet.queueDate) beatmapSet.queueDate = new Date(beatmapSet.queueDate);
-    if (beatmapSet.rankDate) beatmapSet.rankDate = new Date(beatmapSet.rankDate);
-    if (beatmapSet.rankDateEarly) beatmapSet.rankDateEarly = new Date(beatmapSet.rankDateEarly);
-  });
+const JSONToBeatmapSet = (beatmapSetJSON) => {
+  if (beatmapSetJSON.queueDate) beatmapSetJSON.queueDate = new Date(beatmapSetJSON.queueDate);
+  if (beatmapSetJSON.rankDate) beatmapSetJSON.rankDate = new Date(beatmapSetJSON.rankDate);
+  if (beatmapSetJSON.rankDateEarly)
+    beatmapSetJSON.rankDateEarly = new Date(beatmapSetJSON.rankDateEarly);
+  let newBeatmapSet = new BeatmapSet({});
+  Object.assign(newBeatmapSet, beatmapSetJSON);
+  return newBeatmapSet;
 };
 
 const reduceQualifiedMaps = (qualifiedMaps) =>
@@ -311,7 +313,7 @@ const reduceRankedMaps = (rankedMaps) =>
 
 module.exports.adjustAllRankDates = adjustAllRankDates;
 module.exports.checkEvents = checkEvents;
-module.exports.JSONToBeatmapSets = JSONToBeatmapSets;
+module.exports.JSONToBeatmapSet = JSONToBeatmapSet;
 module.exports.reduceQualifiedMaps = reduceQualifiedMaps;
 module.exports.reduceRankedMaps = reduceRankedMaps;
 module.exports.calcEarlyProbability = calcEarlyProbability;

@@ -1,6 +1,5 @@
 const { Storage } = require("@google-cloud/storage");
-const { JSONToBeatmapSets } = require("./osuHelpers");
-const { getRankedMapsFull } = require("./osuRequests");
+const { JSONToBeatmapSet } = require("./osuHelpers");
 
 require("dotenv").config();
 
@@ -26,12 +25,15 @@ const loadAppData = async (appData, callback) => {
     appData.accessToken = storedData.accessToken;
     appData.expireDate = new Date(storedData.expireDate);
     appData.lastEventId = storedData.lastEventId;
-    appData.rankedMaps = storedData.rankedMaps;
-    appData.rankedMapsFull = storedData.rankedMapsFull;
-    appData.qualifiedMaps = storedData.qualifiedMaps;
-    appData.rankedMaps.forEach((mode) => JSONToBeatmapSets(mode));
-    appData.rankedMapsFull.forEach((mode) => JSONToBeatmapSets(mode));
-    appData.qualifiedMaps.forEach((mode) => JSONToBeatmapSets(mode));
+    appData.rankedMaps = storedData.rankedMaps.map((beatmapSets) =>
+      beatmapSets.map((beatmapSet) => JSONToBeatmapSet(beatmapSet))
+    );
+    appData.rankedMapsFull = storedData.rankedMapsFull.map((beatmapSets) =>
+      beatmapSets.map((beatmapSet) => JSONToBeatmapSet(beatmapSet))
+    );
+    appData.qualifiedMaps = storedData.qualifiedMaps.map((beatmapSets) =>
+      beatmapSets.map((beatmapSet) => JSONToBeatmapSet(beatmapSet))
+    );
     console.log(new Date().toISOString(), "- loaded appData from google storage");
     await callback();
   } catch (error) {

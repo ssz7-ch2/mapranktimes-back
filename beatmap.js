@@ -13,11 +13,11 @@ class BeatmapSet {
     this.mapper = creator;
     this.mapperId = user_id;
     this.beatmaps = beatmaps
-      .map((beatmap) => new Beatmap(beatmap))
+      ?.map((beatmap) => new Beatmap(beatmap))
       .sort((a, b) => (b.stars < a.stars ? 1 : -1));
     this.rankEarly = false;
     this.probability = status == "qualified" ? null : 0;
-    this.mode = Math.min(...beatmaps.map((beatmap) => beatmap.mode_int));
+    this.mode = beatmaps == null ? null : Math.min(...beatmaps.map((beatmap) => beatmap.mode_int));
     this.unresolved = false;
   }
 

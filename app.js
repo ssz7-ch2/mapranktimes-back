@@ -21,9 +21,6 @@ const config = require("./config");
 const { MINUTE } = require("./utils/timeConstants");
 const { debounce } = require("lodash");
 
-// test
-const { BeatmapSet } = require("./beatmap");
-
 app.use(cors());
 app.use(express.static("public"));
 
@@ -195,38 +192,15 @@ const setUp = async () => {
 
       let update = false;
 
-      function getAllFuncs(toCheck) {
-        const props = [];
-        let obj = toCheck;
-        do {
-          props.push(...Object.getOwnPropertyNames(obj));
-        } while ((obj = Object.getPrototypeOf(obj)));
-
-        return props.sort().filter((e, i, arr) => {
-          if (e != arr[i + 1] && typeof toCheck[e] == "function") return true;
-        });
-      }
-
       // update unresolved mods every hour (at 50 min)
-      let count = 0;
-      for (const beatmapSets of appData.qualifiedMaps) {
-        for (const beatmapSet of beatmapSets) {
-          try {
-            console.log(getAllFuncs(beatmapSet));
-            await beatmapSet.hasUnresolvedMod();
-          } catch (error) {
-            console.log(error);
-          }
-          try {
+      if (currDate.getUTCMinutes() % 50 === 0) {
+        for (const beatmapSets of appData.qualifiedMaps) {
+          for (const beatmapSet of beatmapSets) {
             await beatmapSet.checkUnresolvedMod();
-          } catch (error) {
-            console.log(error);
           }
-          count++;
-          if (count > 2) break;
         }
+        update = true;
       }
-      update = true;
 
       if (currDate.getUTCMinutes() % 10 === 0) {
         appData.qualifiedMaps.forEach((beatmapSets) => {
