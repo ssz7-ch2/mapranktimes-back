@@ -197,7 +197,7 @@ const setUp = async () => {
       for (const beatmapSets of appData.qualifiedMaps) {
         for (const beatmapSet of beatmapSets) {
           try {
-            console.log(Object.keys(beatmapSet));
+            console.log(Object.getOwnPropertyNames(beatmapSet));
             await beatmapSet.hasUnresolvedMod();
           } catch (error) {
             console.log(error);
