@@ -194,27 +194,25 @@ const setUp = async () => {
 
       // update unresolved mods every hour (at 50 min)
       let count = 0;
-      if (currDate.getUTCMinutes() % 2 === 0) {
-        for (const beatmapSets of appData.qualifiedMaps) {
-          for (const beatmapSet of beatmapSets) {
-            try {
-              console.log(Object.keys(beatmapSet));
-              await beatmapSet.hasUnresolvedMod();
-            } catch (error) {
-              console.log(error);
-            }
-            try {
-              await beatmapSet.checkUnresolvedMod();
-            } catch (error) {
-              console.log(error);
-            }
-            await beatmapSet.checkUnresolvedMod();
-            count++;
-            if (count > 2) break;
+      for (const beatmapSets of appData.qualifiedMaps) {
+        for (const beatmapSet of beatmapSets) {
+          try {
+            console.log(Object.keys(beatmapSet));
+            await beatmapSet.hasUnresolvedMod();
+          } catch (error) {
+            console.log(error);
           }
+          try {
+            await beatmapSet.checkUnresolvedMod();
+          } catch (error) {
+            console.log(error);
+          }
+          await beatmapSet.checkUnresolvedMod();
+          count++;
+          if (count > 2) break;
         }
-        update = true;
       }
+      update = true;
 
       if (currDate.getUTCMinutes() % 10 === 0) {
         appData.qualifiedMaps.forEach((beatmapSets) => {
