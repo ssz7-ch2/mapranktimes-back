@@ -45,7 +45,7 @@ const adjustRankDates = (qualifiedMaps, rankedMaps, start = 0) => {
     qualifiedMap.rankEarly = qualifiedMap.probability >= 0.01; // about the same as >= 6min 6s
     qualifiedMap.rankDate = new Date(roundMinutes(qualifiedMap.rankDateEarly.getTime()));
 
-    if (i - config.RANK_PER_RUN >= 0) {
+    if (i - config.RANK_PER_RUN >= 0 && !qualifiedMap.unresolved) {
       // fix date for maps after the adjustment below
       if (
         combined[i - 1].queueDate !== null &&

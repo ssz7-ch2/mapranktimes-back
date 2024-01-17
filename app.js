@@ -145,6 +145,15 @@ const setUp = async () => {
     try {
       const currDate = new Date();
 
+      // update unresolved mods every hour (at 50 min)
+      if (currDate.getUTCMinutes() % 50 === 0) {
+        for (const beatmapSets of appData.qualifiedMaps) {
+          for (const beatmapSet of beatmapSets) {
+            await beatmapSet.checkUnresolvedMod();
+          }
+        }
+      }
+
       //#region RANK INTERVAL
 
       // check more often when a mapset is about to be ranked
@@ -154,6 +163,7 @@ const setUp = async () => {
         // reset rankQueue
         rankQueue.splice(0, rankQueue.length);
 
+        const temp = [];
         // get mapsets that could be ranked
         appData.qualifiedMaps.forEach((beatmapSets) => {
           for (let i = 0; i < Math.min(config.RANK_PER_RUN, beatmapSets.length); i++) {
@@ -161,13 +171,20 @@ const setUp = async () => {
               currDate >= beatmapSets[i].rankDateEarly ||
               (compareDate >= beatmapSets[i].rankDateEarly && beatmapSets[i].rankEarly)
             ) {
-              rankQueue.push(beatmapSets[i]);
+              temp.push(beatmapSets[i]);
             } else break;
           }
         });
 
+        for (const beatmapSet of temp) {
+          const hasUnresolvedMod = await beatmapSet.checkUnresolvedMod();
+          if (!hasUnresolvedMod) {
+            rankQueue.push(beatmapSet);
+          }
+        }
+
         if (rankQueue.length > 0) {
-          const interval = 2000;
+          const interval = 5000;
           const earliestRankDate = rankQueue[0].rankDateEarly;
           // increase check duration if maps in other modes
           const checkDuration = Math.min(8 + rankQueue.length * 2, 12) * MINUTE;

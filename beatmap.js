@@ -18,52 +18,82 @@ class BeatmapSet {
     this.rankEarly = false;
     this.probability = status == "qualified" ? null : 0;
     this.mode = Math.min(...beatmaps.map((beatmap) => beatmap.mode_int));
+    this.unresolved = false;
   }
 
   static lastRequestDate = 0;
 
-  async getQueueTime() {
+  async getJSON() {
     // avoid getting rate limited :)
     if (Date.now() - BeatmapSet.lastRequestDate < 1500)
       await new Promise((resolve) => setTimeout(resolve, 1500));
-    console.log(
-      new Date().toISOString(),
-      `- calculating queueDate for ${this.id} ${this.artist} - ${this.title}`
-    );
+
     const url = `https://osu.ppy.sh/beatmapsets/${this.id}/discussion?format=json`;
     let res;
     while (res?.status != 200) {
       try {
         res = await axios.get(url);
         BeatmapSet.lastRequestDate = Date.now();
-        const events = res.data.beatmapset.events
-          .filter((event) => event.type === "qualify" || event.type === "disqualify")
-          .map((event) => ({ type: event.type, time: Date.parse(event.created_at) }));
-
-        let previousQueueDuration = 0;
-        let startDate;
-
-        events.forEach((event) => {
-          if (event.type === "qualify") startDate = event.time;
-          else if (event.type === "disqualify" && startDate != null)
-            previousQueueDuration += event.time - startDate;
-        });
-
-        // all maps need to be qualified for at least 7 days
-        const queueDuration = config.MINIMUM_DAYS_FOR_RANK * DAY;
-
-        const timeLeft = queueDuration - previousQueueDuration;
-
-        // this.rankDate is the latest qualified date
-        // maps need to be qualified for at least 1 day since lastest qualified date
-        this.queueDate = new Date(this.rankDate.getTime() + Math.max(DAY, timeLeft));
-
-        console.log(new Date().toISOString(), "- success");
+        return res;
       } catch (err) {
         console.log(err);
         await new Promise((resolve) => setTimeout(resolve, 30000));
       }
     }
+  }
+
+  async getQueueTime() {
+    console.log(
+      new Date().toISOString(),
+      `- calculating queueDate for ${this.id} ${this.artist} - ${this.title}`
+    );
+
+    const res = await this.getJSON();
+
+    const events = res.data.beatmapset.events
+      .filter((event) => event.type === "qualify" || event.type === "disqualify")
+      .map((event) => ({ type: event.type, time: Date.parse(event.created_at) }));
+
+    let previousQueueDuration = 0;
+    let startDate;
+
+    events.forEach((event) => {
+      if (event.type === "qualify") startDate = event.time;
+      else if (event.type === "disqualify" && startDate != null)
+        previousQueueDuration += event.time - startDate;
+    });
+
+    // all maps need to be qualified for at least 7 days
+    const queueDuration = config.MINIMUM_DAYS_FOR_RANK * DAY;
+
+    const timeLeft = queueDuration - previousQueueDuration;
+
+    // this.rankDate is the latest qualified date
+    // maps need to be qualified for at least 1 day since lastest qualified date
+    this.queueDate = new Date(this.rankDate.getTime() + Math.max(DAY, timeLeft));
+
+    // also get unresolved
+    checkUnresolvedMod(res);
+
+    console.log(new Date().toISOString(), "- success");
+  }
+
+  async checkUnresolvedMod(res = null) {
+    res ??= await this.getJSON();
+    const discussions = res.data.beatmapset.discussions.filter(
+      (discussion) =>
+        (discussion.message_type === "suggestion" || discussion.message_type === "problem") &&
+        discussion.resolved === false &&
+        (discussion.beatmap_id == null ||
+          this.beatmaps.filter((b) => b.id == discussion.beatmap_id).length > 0)
+    );
+
+    if (discussions.length > 0) {
+      this.unresolved = true;
+    } else {
+      this.unresolved = false;
+    }
+    return this.unresolved;
   }
 
   static reduced(beatmapSet) {
@@ -90,6 +120,7 @@ class BeatmapSet {
       }),
       re: beatmapSet.rankEarly,
       p: beatmapSet.probability,
+      u: beatmapSet.unresolved,
     };
     return r;
   }
