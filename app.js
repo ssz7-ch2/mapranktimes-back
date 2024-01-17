@@ -192,12 +192,24 @@ const setUp = async () => {
 
       let update = false;
 
+      function getAllFuncs(toCheck) {
+        const props = [];
+        let obj = toCheck;
+        do {
+          props.push(...Object.getOwnPropertyNames(obj));
+        } while ((obj = Object.getPrototypeOf(obj)));
+
+        return props.sort().filter((e, i, arr) => {
+          if (e != arr[i + 1] && typeof toCheck[e] == "function") return true;
+        });
+      }
+
       // update unresolved mods every hour (at 50 min)
       let count = 0;
       for (const beatmapSets of appData.qualifiedMaps) {
         for (const beatmapSet of beatmapSets) {
           try {
-            console.log(Object.getOwnPropertyNames(beatmapSet));
+            console.log(getAllFuncs(beatmapSet));
             await beatmapSet.hasUnresolvedMod();
           } catch (error) {
             console.log(error);
@@ -207,7 +219,6 @@ const setUp = async () => {
           } catch (error) {
             console.log(error);
           }
-          await beatmapSet.checkUnresolvedMod();
           count++;
           if (count > 2) break;
         }
