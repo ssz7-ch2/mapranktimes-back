@@ -185,6 +185,7 @@ const rankEvent = async (qualifiedMaps, rankedMaps, rankedMapsFull, accessToken,
     beatmapSetTarget.rankDate = mapEvent.createdAt;
     beatmapSetTarget.queueDate = null;
     beatmapSetTarget.probability = 0;
+    beatmapSetTarget.unresolved = false;
     rankedMaps[beatmapSetTarget.mode].push(beatmapSetTarget);
     rankedMapsFull[beatmapSetTarget.mode].push(beatmapSetTarget);
 

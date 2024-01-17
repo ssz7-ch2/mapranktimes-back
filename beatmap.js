@@ -73,7 +73,7 @@ class BeatmapSet {
     this.queueDate = new Date(this.rankDate.getTime() + Math.max(DAY, timeLeft));
 
     // also get unresolved
-    checkUnresolvedMod(res);
+    this.checkUnresolvedMod(res);
 
     console.log(new Date().toISOString(), "- success");
   }
