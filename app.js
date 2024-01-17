@@ -21,6 +21,9 @@ const config = require("./config");
 const { MINUTE } = require("./utils/timeConstants");
 const { debounce } = require("lodash");
 
+// test
+const { BeatmapSet } = require("./beatmap");
+
 app.use(cors());
 app.use(express.static("public"));
 
