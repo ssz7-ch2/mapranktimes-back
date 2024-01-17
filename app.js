@@ -192,14 +192,14 @@ const setUp = async () => {
 
       let update = false;
 
-      // update unresolved mods every hour (at 50 min)
-      if (currDate.getUTCMinutes() % 50 === 0) {
-        for (const beatmapSets of appData.qualifiedMaps) {
-          for (const beatmapSet of beatmapSets) {
-            await beatmapSet.checkUnresolvedMod();
-          }
+      // update unresolved mods every hour (at 50 min) and every 5 min for maps currently with unresolved mod
+      for (const beatmapSets of appData.qualifiedMaps) {
+        for (const beatmapSet of beatmapSets) {
+          if (!beatmapSet.unresolved && currDate.getUTCMinutes() % 50 !== 0) continue;
+          const prev = beatmapSet.unresolved;
+          const unresolved = await beatmapSet.checkUnresolvedMod();
+          if (prev !== unresolved) update = true;
         }
-        update = true;
       }
 
       if (currDate.getUTCMinutes() % 10 === 0) {
