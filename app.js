@@ -153,7 +153,6 @@ const setUp = async () => {
         // reset rankQueue
         rankQueue.splice(0, rankQueue.length);
 
-        const temp = [];
         // get mapsets that could be ranked
         appData.qualifiedMaps.forEach((beatmapSets) => {
           for (let i = 0; i < Math.min(config.RANK_PER_RUN, beatmapSets.length); i++) {
@@ -161,17 +160,11 @@ const setUp = async () => {
               currDate >= beatmapSets[i].rankDateEarly ||
               (compareDate >= beatmapSets[i].rankDateEarly && beatmapSets[i].rankEarly)
             ) {
-              temp.push(beatmapSets[i]);
+              // don't include maps with unresolved mod
+              if (!beatmapSets[i].unresolved) rankQueue.push(beatmapSets[i]);
             } else break;
           }
         });
-
-        for (const beatmapSet of temp) {
-          const hasUnresolvedMod = await beatmapSet.checkUnresolvedMod();
-          if (!hasUnresolvedMod) {
-            rankQueue.push(beatmapSet);
-          }
-        }
 
         if (rankQueue.length > 0) {
           const interval = 5000;
