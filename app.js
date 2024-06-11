@@ -167,7 +167,7 @@ const setUp = async () => {
         });
 
         if (rankQueue.length > 0) {
-          const interval = 5000;
+          const interval = 30000;
           const earliestRankDate = rankQueue[0].rankDateEarly;
           // increase check duration if maps in other modes
           const checkDuration = Math.min(8 + rankQueue.length * 2, 12) * MINUTE;
