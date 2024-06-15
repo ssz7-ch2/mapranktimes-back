@@ -357,11 +357,6 @@ export const setQueueTime = async (
   beatmapSet: BeatmapSet,
   accessToken: string,
 ) => {
-  console.log(
-    new Date().toISOString(),
-    `- calculating queueDate for ${beatmapSet.id} ${beatmapSet.artist} - ${beatmapSet.title}`,
-  );
-
   const events = (await getMapEvents(accessToken, beatmapSet.id))
     .map((event) => ({
       type: event.type,
@@ -388,8 +383,6 @@ export const setQueueTime = async (
   beatmapSet.queueDate = new Date(
     beatmapSet.lastQualifiedDate!.getTime() + Math.max(DAY, timeLeft),
   );
-
-  console.log(new Date().toISOString(), "- success");
 };
 
 //#endregion
