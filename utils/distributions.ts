@@ -1,6 +1,6 @@
 // copied from http://www.randomservices.org/random/
 
-function uniformSumCDF(n, x) {
+export function uniformSumCDF(n: number, x: number) {
   var sum = 0;
   if (x < 0) return 0;
   else if (x > n) return 1;
@@ -11,17 +11,17 @@ function uniformSumCDF(n, x) {
   }
 }
 
-function perm(n, k) {
+function perm(n: number, k: number) {
   var p = 1;
   for (var i = 0; i < k; i++) p = p * (n - i);
   return p;
 }
 
-function factorial(n) {
+function factorial(n: number) {
   return perm(n, n);
 }
 
-function binomial(n, k) {
+function binomial(n: number, k: number) {
   if (k < 0 || k > n) return 0;
   else {
     var p = 1;
@@ -30,10 +30,8 @@ function binomial(n, k) {
   }
 }
 
-function sgn(x) {
+function sgn(x: number) {
   if (x > 0) return 1;
   else if (x < 0) return -1;
   else return 0;
 }
-
-module.exports.uniformSumCDF = uniformSumCDF;
