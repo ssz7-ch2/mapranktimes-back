@@ -18,6 +18,7 @@ import {
 import { BeatmapSet, BeatmapSetDatabase } from "../_shared/beatmap.types.ts";
 import { DAY, HOUR } from "../_shared/constants.ts";
 import { Database } from "../_shared/database.types.ts";
+import { Redis } from "npm:@upstash/redis@^1.31.5";
 
 const removeMapFromQualified = (
   qualifiedMaps: BeatmapSet[][],
@@ -263,11 +264,21 @@ Deno.serve(async (_req: Request) => {
     const { error } = await supabase.from("beatmapsets").upsert(mapsToUpdate);
     if (error) console.log(error);
 
+    const timestamp = Date.now();
+    if (mapsToUpdate.length > 0) {
+      const redis = Redis.fromEnv();
+
+      redis.set(`updates-${timestamp}`, JSON.stringify(mapsToUpdate), {
+        ex: 60,
+      });
+    }
+
     if (updatedMaps.length + deletedMaps.length > 0) {
       const { error } = await supabase
         .from("updates")
         .upsert({
           id: 1,
+          timestamp,
           updated_maps: updatedMaps,
           deleted_maps: deletedMaps,
         });

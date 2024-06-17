@@ -5,6 +5,7 @@ import { Database } from "./database.types";
 import { DAY, HOUR } from "./timeConstants";
 import { BeatmapSet, BeatmapSetDatabase } from "./beatmap.types";
 import { adjustRankDates, calcEarlyProbability } from "./osuHelpers";
+import { Redis } from "@upstash/redis";
 
 require("dotenv").config();
 
@@ -253,10 +254,22 @@ const checkEvents = async (accessToken: string, lastEventId: number) => {
   const { error } = await supabase.from("beatmapsets").upsert(mapsToUpdate);
   if (error) console.log(error);
 
+  const timestamp = Date.now();
+  if (mapsToUpdate.length > 0) {
+    const redis = Redis.fromEnv();
+
+    redis.set(`updates-${timestamp}`, JSON.stringify(mapsToUpdate), { ex: 60 });
+  }
+
   if (updatedMaps.length + deletedMaps.length > 0) {
     const { error } = await supabase
       .from("updates")
-      .upsert({ id: 1, updated_maps: updatedMaps, deleted_maps: deletedMaps });
+      .upsert({
+        id: 1,
+        timestamp,
+        updated_maps: updatedMaps,
+        deleted_maps: deletedMaps,
+      });
     if (error) console.log(error);
   }
 

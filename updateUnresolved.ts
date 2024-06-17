@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { getAccessToken, getMapsUnresolved } from "./osuRequests";
 import { Database } from "./database.types";
+import { Redis } from "@upstash/redis";
 
 require("dotenv").config();
 
@@ -77,9 +78,19 @@ const updateUnresolved = async () => {
   }
 
   if (updatedMaps.length > 0) {
+    const redis = Redis.fromEnv();
+    const timestamp = Date.now();
+
+    redis.set(`updates-${timestamp}`, JSON.stringify(mapsToUpdate), { ex: 60 });
+
     const { error } = await supabase
       .from("updates")
-      .upsert({ id: 1, updated_maps: updatedMaps, deleted_maps: [] });
+      .upsert({
+        id: 1,
+        timestamp,
+        updated_maps: updatedMaps,
+        deleted_maps: [],
+      });
     if (error) console.log(error);
   }
 

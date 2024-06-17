@@ -8,6 +8,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getAccessToken, getMapsUnresolved } from "../_shared/osuFunctions.ts";
 import { Database } from "../_shared/database.types.ts";
+import { Redis } from "npm:@upstash/redis@^1.31.5";
 
 Deno.serve(async (_req) => {
   const supabase = createClient<Database>(
@@ -82,9 +83,19 @@ Deno.serve(async (_req) => {
   }
 
   if (updatedMaps.length > 0) {
+    const redis = Redis.fromEnv();
+    const timestamp = Date.now();
+
+    redis.set(`updates-${timestamp}`, JSON.stringify(mapsToUpdate), { ex: 60 });
+
     const { error } = await supabase
       .from("updates")
-      .upsert({ id: 1, updated_maps: updatedMaps, deleted_maps: [] });
+      .upsert({
+        id: 1,
+        timestamp,
+        updated_maps: updatedMaps,
+        deleted_maps: [],
+      });
     if (error) console.log(error);
   }
 
