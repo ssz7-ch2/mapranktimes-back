@@ -63,7 +63,7 @@ export const getBeatmapSet = async (
 
   const beatmapSet = beatmapSetFromAPI(data);
   if (data.status === "qualified") {
-    await setQueueTime(beatmapSet, accessToken);
+    await setQueueDate(beatmapSet, accessToken);
 
     // very unlikely that a map has unresolved mods right after getting qualified
     // await setUnresolved(beatmapSet, accessToken);
@@ -94,7 +94,7 @@ export const getQualifiedMaps = async (accessToken: string) => {
   for (const item of dataList) {
     const beatmapSet = beatmapSetFromAPI(item);
 
-    await setQueueTime(beatmapSet, accessToken);
+    await setQueueDate(beatmapSet, accessToken);
     await setUnresolved(beatmapSet, accessToken);
 
     qualifiedMaps[beatmapSet.mode].push(beatmapSet);
@@ -218,7 +218,7 @@ const setUnresolved = async (beatmapSet: BeatmapSet, accessToken: string) => {
   lastRequestDate = Date.now();
 };
 
-const setQueueTime = async (beatmapSet: BeatmapSet, accessToken: string) => {
+const setQueueDate = async (beatmapSet: BeatmapSet, accessToken: string) => {
   if (Date.now() - lastRequestDate < 1000) {
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
