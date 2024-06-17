@@ -137,7 +137,6 @@ const checkEvents = async (accessToken: string, lastEventId: number) => {
   );
   if (newEvents.length === 0) return newLastEventId;
 
-  // keep track of state before change
   const { data: qualifiedData, error: errorQualified } = await supabase
     .from("beatmapsets")
     .select("*")
@@ -155,6 +154,7 @@ const checkEvents = async (accessToken: string, lastEventId: number) => {
     );
   }
 
+  // keep track of state before change
   const previousData: {
     [key: number]: [number, number | null, number | null];
   } = {};
