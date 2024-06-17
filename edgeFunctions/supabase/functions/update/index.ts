@@ -189,7 +189,7 @@ Deno.serve(async (_req: Request) => {
     let currentEventId: number;
 
     const updatedMaps: number[] = [];
-    const deletedMaps: number[] = [];
+    let deletedMaps: number[] = [];
 
     try {
       for (const mapEvent of newEvents) {
@@ -216,6 +216,11 @@ Deno.serve(async (_req: Request) => {
               rankedMaps,
               mapEvent.beatmapSetId,
               accessToken,
+            );
+            // if a map is disqualified and immediately requalified, the map will still be in deletedMaps
+            // so we need to remove it
+            deletedMaps = deletedMaps.filter((mapId) =>
+              mapId !== mapEvent.beatmapSetId
             );
             break;
           case "disqualify":
@@ -265,6 +270,7 @@ Deno.serve(async (_req: Request) => {
     if (error) console.log(error);
 
     const timestamp = Date.now();
+
     if (mapsToUpdate.length > 0) {
       const redis = Redis.fromEnv();
 

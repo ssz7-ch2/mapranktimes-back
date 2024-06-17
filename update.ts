@@ -127,7 +127,7 @@ const disqualifyEvent = async (
 };
 
 const checkEvents = async (accessToken: string, lastEventId: number) => {
-  const [newEvents, newLastEventId] = await getEventsAfter(
+  let [newEvents, newLastEventId] = await getEventsAfter(
     accessToken,
     lastEventId,
   );
@@ -137,6 +137,9 @@ const checkEvents = async (accessToken: string, lastEventId: number) => {
     `- ${newEvents.length} new event${newEvents.length === 1 ? "" : "s"}`,
   );
   if (newEvents.length === 0) return newLastEventId;
+
+  // newEvents = newEvents.slice(0, 1);
+  // newLastEventId = newEvents[0].id;
 
   const { data: qualifiedData, error: errorQualified } = await supabase
     .from("beatmapsets")
@@ -178,7 +181,7 @@ const checkEvents = async (accessToken: string, lastEventId: number) => {
   let currentEventId: number;
 
   const updatedMaps: number[] = [];
-  const deletedMaps: number[] = [];
+  let deletedMaps: number[] = [];
 
   try {
     for (const mapEvent of newEvents) {
@@ -205,6 +208,11 @@ const checkEvents = async (accessToken: string, lastEventId: number) => {
             rankedMaps,
             mapEvent.beatmapSetId,
             accessToken,
+          );
+          // if a map is disqualified and immediately requalified, the map will still be in deletedMaps
+          // so we need to remove it
+          deletedMaps = deletedMaps.filter((mapId) =>
+            mapId !== mapEvent.beatmapSetId
           );
           break;
         case "disqualify":
@@ -244,7 +252,6 @@ const checkEvents = async (accessToken: string, lastEventId: number) => {
           false,
         )
       ) {
-        console.log(beatmapSet.id, previousData[beatmapSet.id], currentData);
         mapsToUpdate.push(beatmapSetToDatabase(beatmapSet));
         updatedMaps.push(beatmapSet.id);
       }
@@ -255,10 +262,13 @@ const checkEvents = async (accessToken: string, lastEventId: number) => {
   if (error) console.log(error);
 
   const timestamp = Date.now();
+
   if (mapsToUpdate.length > 0) {
     const redis = Redis.fromEnv();
 
-    redis.set(`updates-${timestamp}`, JSON.stringify(mapsToUpdate), { ex: 60 });
+    redis.set(`updates-${timestamp}`, JSON.stringify(mapsToUpdate), {
+      ex: 60,
+    });
   }
 
   if (updatedMaps.length + deletedMaps.length > 0) {
