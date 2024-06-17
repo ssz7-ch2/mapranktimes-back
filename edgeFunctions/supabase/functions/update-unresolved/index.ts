@@ -83,7 +83,10 @@ Deno.serve(async (_req) => {
   }
 
   if (updatedMaps.length > 0) {
-    const redis = Redis.fromEnv();
+    const redis = new Redis({
+      url: Deno.env.get("UPSTASH_REDIS_REST_URL")!,
+      token: Deno.env.get("UPSTASH_REDIS_REST_TOKEN")!,
+    });
     const timestamp = Date.now();
 
     redis.set(`updates-${timestamp}`, JSON.stringify(mapsToUpdate), { ex: 60 });
