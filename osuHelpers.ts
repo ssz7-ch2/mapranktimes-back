@@ -1,7 +1,10 @@
-import { BeatmapSet } from "./beatmap.types";
+import { SupabaseClient } from "@supabase/supabase-js";
+import { BeatmapSet, BeatmapSetDatabase } from "./beatmap.types";
 import { RANK_INTERVAL, RANK_PER_DAY, RANK_PER_RUN, SPLIT } from "./config";
-import { DAY, MINUTE } from "./timeConstants";
+import { DAY, HOUR, MINUTE } from "./timeConstants";
+import { beatmapSetToDatabase, databaseToSplitModes } from "./utils";
 import { probabilityAfter } from "./utils/probability";
+import { Database } from "./database.types";
 
 // round milliseconds up or down to rank intervals and return new date
 const roundMinutes = (milliseconds: number, down = false) =>
@@ -168,4 +171,84 @@ export const adjustAllRankDates = (
     adjustRankDates(qualifiedMaps[mode], rankedMaps[mode]);
   }
   calcEarlyProbability(qualifiedMaps);
+};
+
+export const storeMapProperties = (qualifiedData: BeatmapSetDatabase[]) => {
+  const previousData: {
+    [key: number]: [number, number | null, number | null];
+  } = {};
+
+  qualifiedData.forEach((beatmapSet) => {
+    previousData[beatmapSet.id] = [
+      beatmapSet.rank_date,
+      beatmapSet.rank_date_early,
+      beatmapSet.probability,
+    ];
+  });
+
+  return previousData;
+};
+
+export const getFormattedMapsFromDatabase = async (
+  supabase: SupabaseClient<Database>,
+) => {
+  const { data: qualifiedData, error: errorQualified } = await supabase
+    .from("beatmapsets")
+    .select("*")
+    .not("queue_date", "is", null);
+
+  const { data: rankedData, error: errorRanked } = await supabase
+    .from("beatmapsets")
+    .select("*")
+    .is("queue_date", null)
+    .gt("rank_date", Math.floor((Date.now() - DAY - HOUR) / 1000));
+
+  if (!rankedData || !qualifiedData) {
+    throw new Error(
+      `missing data. errorQualified ${errorQualified}\nerrorRanked ${errorRanked}`,
+    );
+  }
+
+  const qualifiedMaps = databaseToSplitModes(
+    qualifiedData.sort((a, b) => a.queue_date! - b.queue_date!),
+  );
+  const rankedMaps = databaseToSplitModes(
+    rankedData.sort((a, b) => a.rank_date - b.rank_date),
+  );
+
+  return { qualifiedMaps, rankedMaps, qualifiedData, rankedData };
+};
+
+export const getUpdatedMaps = (
+  qualifiedMaps: BeatmapSet[][],
+  previousData: {
+    [key: number]: [number, number | null, number | null];
+  },
+) => {
+  const mapsToUpdate: BeatmapSetDatabase[] = [];
+  const updatedMapIds: number[] = [];
+
+  qualifiedMaps.forEach((beatmapSets) => {
+    beatmapSets.forEach((beatmapSet) => {
+      const currentData = [
+        beatmapSet.rankDate!.getTime() / 1000,
+        beatmapSet.rankDateEarly!.getTime() / 1000,
+        beatmapSet.probability,
+      ];
+
+      // if rankDate/rankDateEarly/probability has changed or new qualified map
+      if (
+        !(beatmapSet.id in previousData) ||
+        previousData[beatmapSet.id].reduce(
+          (updated, value, i) => updated || currentData[i] !== value,
+          false,
+        )
+      ) {
+        mapsToUpdate.push(beatmapSetToDatabase(beatmapSet));
+        updatedMapIds.push(beatmapSet.id);
+      }
+    });
+  });
+
+  return { mapsToUpdate, updatedMapIds };
 };

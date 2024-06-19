@@ -1,10 +1,14 @@
 import { createClient } from "@supabase/supabase-js";
 import { getAccessToken, getBeatmapSet, getEventsAfter } from "./osuRequests";
-import { beatmapSetToDatabase, databaseToSplitModes } from "./utils";
 import { Database } from "./database.types";
-import { DAY, HOUR } from "./timeConstants";
-import { BeatmapSet, BeatmapSetDatabase } from "./beatmap.types";
-import { adjustRankDates, calcEarlyProbability } from "./osuHelpers";
+import { BeatmapSet } from "./beatmap.types";
+import {
+  adjustRankDates,
+  calcEarlyProbability,
+  getFormattedMapsFromDatabase,
+  getUpdatedMaps,
+  storeMapProperties,
+} from "./osuHelpers";
 import { Redis } from "@upstash/redis";
 
 require("dotenv").config();
@@ -141,47 +145,15 @@ const checkEvents = async (accessToken: string, lastEventId: number) => {
   // newEvents = newEvents.slice(0, 1);
   // newLastEventId = newEvents[0].id;
 
-  const { data: qualifiedData, error: errorQualified } = await supabase
-    .from("beatmapsets")
-    .select("*")
-    .not("queue_date", "is", null);
-
-  const { data: rankedData, error: errorRanked } = await supabase
-    .from("beatmapsets")
-    .select("*")
-    .is("queue_date", null)
-    .gt("rank_date", Math.floor((Date.now() - DAY - HOUR) / 1000));
-
-  if (!rankedData || !qualifiedData) {
-    throw new Error(
-      `missing data. errorQualified ${errorQualified}\nerrorRanked ${errorRanked}`,
-    );
-  }
+  const { qualifiedMaps, rankedMaps, qualifiedData } =
+    await getFormattedMapsFromDatabase(supabase);
 
   // keep track of state before change
-  const previousData: {
-    [key: number]: [number, number | null, number | null];
-  } = {};
-
-  qualifiedData.forEach((beatmapSet) => {
-    previousData[beatmapSet.id] = [
-      beatmapSet.rank_date,
-      beatmapSet.rank_date_early,
-      beatmapSet.probability,
-    ];
-  });
-
-  const qualifiedMaps = databaseToSplitModes(
-    qualifiedData.sort((a, b) => a.queue_date! - b.queue_date!),
-  );
-  const rankedMaps = databaseToSplitModes(
-    rankedData.sort((a, b) => a.rank_date - b.rank_date),
-  );
+  const previousData = storeMapProperties(qualifiedData);
 
   let currentEventId: number;
 
-  const updatedMaps: number[] = [];
-  let deletedMaps: number[] = [];
+  let deletedMapIds: number[] = [];
 
   try {
     for (const mapEvent of newEvents) {
@@ -200,7 +172,7 @@ const checkEvents = async (accessToken: string, lastEventId: number) => {
             mapEvent.createdAt,
           );
           // deleted from client side
-          deletedMaps.push(mapEvent.beatmapSetId);
+          deletedMapIds.push(mapEvent.beatmapSetId);
           break;
         case "qualify":
           await qualifyEvent(
@@ -211,7 +183,7 @@ const checkEvents = async (accessToken: string, lastEventId: number) => {
           );
           // if a map is disqualified and immediately requalified, the map will still be in deletedMaps
           // so we need to remove it
-          deletedMaps = deletedMaps.filter((mapId) =>
+          deletedMapIds = deletedMapIds.filter((mapId) =>
             mapId !== mapEvent.beatmapSetId
           );
           break;
@@ -221,7 +193,7 @@ const checkEvents = async (accessToken: string, lastEventId: number) => {
             rankedMaps,
             mapEvent.beatmapSetId,
           );
-          deletedMaps.push(mapEvent.beatmapSetId);
+          deletedMapIds.push(mapEvent.beatmapSetId);
           break;
         default:
           break;
@@ -234,29 +206,10 @@ const checkEvents = async (accessToken: string, lastEventId: number) => {
 
   calcEarlyProbability(qualifiedMaps);
 
-  const mapsToUpdate: BeatmapSetDatabase[] = [];
-
-  qualifiedMaps.forEach((beatmapSets) => {
-    beatmapSets.forEach((beatmapSet) => {
-      const currentData = [
-        beatmapSet.rankDate!.getTime() / 1000,
-        beatmapSet.rankDateEarly!.getTime() / 1000,
-        beatmapSet.probability,
-      ];
-
-      // if rankDate/rankDateEarly/probability has changed or new qualified map
-      if (
-        !(beatmapSet.id in previousData) ||
-        previousData[beatmapSet.id].reduce(
-          (updated, value, i) => updated || currentData[i] !== value,
-          false,
-        )
-      ) {
-        mapsToUpdate.push(beatmapSetToDatabase(beatmapSet));
-        updatedMaps.push(beatmapSet.id);
-      }
-    });
-  });
+  const { mapsToUpdate, updatedMapIds } = getUpdatedMaps(
+    qualifiedMaps,
+    previousData,
+  );
 
   const { error } = await supabase.from("beatmapsets").upsert(mapsToUpdate);
   if (error) console.log(error);
@@ -271,14 +224,14 @@ const checkEvents = async (accessToken: string, lastEventId: number) => {
     });
   }
 
-  if (updatedMaps.length + deletedMaps.length > 0) {
+  if (updatedMapIds.length + deletedMapIds.length > 0) {
     const { error } = await supabase
       .from("updates")
       .upsert({
         id: 1,
         timestamp,
-        updated_maps: updatedMaps,
-        deleted_maps: deletedMaps,
+        updated_maps: updatedMapIds,
+        deleted_maps: deletedMapIds,
       });
     if (error) console.log(error);
   }
