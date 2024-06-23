@@ -48,7 +48,7 @@ Deno.serve(async (_req: Request) => {
     beatmapSetId: number,
     rankedDate: Date,
   ) => {
-    const [beatmapSetTarget, start] = removeMapFromQualified(
+    const [beatmapSetTarget] = removeMapFromQualified(
       qualifiedMaps,
       beatmapSetId,
     );
@@ -70,7 +70,6 @@ Deno.serve(async (_req: Request) => {
     adjustRankDates(
       qualifiedMaps[beatmapSetTarget.mode],
       rankedMaps[beatmapSetTarget.mode],
-      start,
     );
 
     const { error } = await supabase

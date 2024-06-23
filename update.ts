@@ -40,7 +40,7 @@ const rankEvent = async (
   beatmapSetId: number,
   rankedDate: Date,
 ) => {
-  const [beatmapSetTarget, start] = removeMapFromQualified(
+  const [beatmapSetTarget] = removeMapFromQualified(
     qualifiedMaps,
     beatmapSetId,
   );
@@ -62,7 +62,6 @@ const rankEvent = async (
   adjustRankDates(
     qualifiedMaps[beatmapSetTarget.mode],
     rankedMaps[beatmapSetTarget.mode],
-    start,
   );
 
   const { error } = await supabase
