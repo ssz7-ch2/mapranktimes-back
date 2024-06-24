@@ -52,6 +52,23 @@ export const adjustRankDates = (
       Math.max(qualifiedMap.queueDate!.getTime(), compareDate),
     );
 
+    if (
+      prev?.getTime() !== qualifiedMap.rankDateEarly.getTime()
+    ) {
+      console.log(qualifiedMap.id, "-", prev, qualifiedMap.rankDateEarly);
+      console.log(qualifiedMap.id, "- queueDate:", qualifiedMap.queueDate);
+      console.log(qualifiedMap.id, "- compareDate:", new Date(compareDate));
+      if (compareMap != null && compareMap.rankDate != null) {
+        console.log(
+          qualifiedMap.id,
+          `- compareMap.rankDate ${compareMap.id}:`,
+          compareMap.rankDate,
+        );
+      } else {
+        console.log(i - RANK_PER_DAY, rankedMaps.length);
+      }
+    }
+
     qualifiedMap.probability = null;
     // don't calculate probability for maps using rounded compare date
     if (
@@ -68,14 +85,17 @@ export const adjustRankDates = (
     );
 
     if (i - RANK_PER_RUN >= 0 && !qualifiedMap.unresolved) {
+      const filteredMaps = combined.slice(0, i).filter((beatmapSet) =>
+        !beatmapSet.unresolved
+      ).reverse();
       // fix date for maps after the adjustment below
       if (
-        combined[i - 1].queueDate !== null &&
+        filteredMaps[0].queueDate !== null &&
         qualifiedMap.rankDate.getTime() <
-          roundMinutes(combined[i - 1].rankDate!.getTime(), true)
+          roundMinutes(filteredMaps[0].rankDate!.getTime(), true)
       ) {
         qualifiedMap.rankDate = new Date(
-          roundMinutes(combined[i - 1].rankDate!.getTime(), true),
+          roundMinutes(filteredMaps[0].rankDate!.getTime(), true),
         );
         qualifiedMap.rankDateEarly = qualifiedMap.rankDate;
         qualifiedMap.probability = 0;
@@ -83,8 +103,8 @@ export const adjustRankDates = (
 
       // if 3 maps have the same time, the 3rd map is pushed to next interval
       if (
-        combined
-          .slice(i - RANK_PER_RUN, i)
+        filteredMaps
+          .slice(0, RANK_PER_RUN)
           .every(
             (beatmapSet) =>
               roundMinutes(beatmapSet.rankDate!.getTime(), true) >=
@@ -92,24 +112,24 @@ export const adjustRankDates = (
           )
       ) {
         if (
-          combined
-            .slice(i - RANK_PER_RUN, i)
+          filteredMaps
+            .slice(0, RANK_PER_RUN)
             .every(
               (beatmapSet) =>
                 roundMinutes(beatmapSet.rankDate!.getTime(), true) ===
                   roundMinutes(
-                    combined[i - RANK_PER_RUN].rankDate!.getTime(),
+                    filteredMaps[RANK_PER_RUN - 1].rankDate!.getTime(),
                     true,
                   ),
             )
         ) {
           qualifiedMap.rankDate = new Date(
-            roundMinutes(combined[i - 1].rankDate!.getTime(), true) +
+            roundMinutes(filteredMaps[0].rankDate!.getTime(), true) +
               RANK_INTERVAL * MINUTE,
           );
         } else {
           qualifiedMap.rankDate = new Date(
-            roundMinutes(combined[i - 1].rankDate!.getTime(), true),
+            roundMinutes(filteredMaps[0].rankDate!.getTime(), true),
           );
         }
         qualifiedMap.rankDateEarly = qualifiedMap.rankDate;
