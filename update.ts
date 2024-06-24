@@ -57,6 +57,7 @@ const rankEvent = async (
   beatmapSetTarget.rankDate = rankedDate;
   beatmapSetTarget.rankDateEarly = null;
   beatmapSetTarget.queueDate = null;
+  beatmapSetTarget.unresolved = false;
 
   rankedMaps[beatmapSetTarget.mode].push(beatmapSetTarget);
   adjustRankDates(
@@ -70,6 +71,7 @@ const rankEvent = async (
       queue_date: null,
       rank_date: rankedDate.getTime() / 1000,
       rank_date_early: null,
+      unresolved: false,
     })
     .eq("id", beatmapSetId);
   if (error) console.log(error);

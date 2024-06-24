@@ -26,7 +26,16 @@ export const adjustRankDates = (
   const combined = rankedMaps.concat(qualifiedMaps);
   for (let i = rankedMaps.length + start; i < combined.length; i++) {
     const qualifiedMap = combined[i];
-    const compareMap = combined[i - RANK_PER_DAY];
+
+    let compareMap: BeatmapSet | null = null;
+
+    // skip over unresolved maps
+    let count = 0;
+    for (const beatmapSet of combined.slice(0, i).reverse()) {
+      if (beatmapSet.unresolved) continue;
+      count++;
+      if (count === RANK_PER_DAY) compareMap = beatmapSet;
+    }
 
     let compareDate = 0;
     if (compareMap != null && compareMap.rankDate != null) {
@@ -42,23 +51,6 @@ export const adjustRankDates = (
     qualifiedMap.rankDateEarly = new Date(
       Math.max(qualifiedMap.queueDate!.getTime(), compareDate),
     );
-
-    if (
-      prev?.getTime() !== qualifiedMap.rankDateEarly.getTime() ||
-      qualifiedMap.id === 2106498
-    ) {
-      console.log(qualifiedMap.id, "-", prev, qualifiedMap.rankDateEarly);
-      console.log(qualifiedMap.id, "- compareDate:", new Date(compareDate));
-      if (compareMap != null && compareMap.rankDate != null) {
-        console.log(
-          qualifiedMap.id,
-          "- compareMap.rankDate:",
-          compareMap.rankDate,
-        );
-      } else {
-        console.log(i - RANK_PER_DAY, rankedMaps.length);
-      }
-    }
 
     qualifiedMap.probability = null;
     // don't calculate probability for maps using rounded compare date
@@ -173,16 +165,17 @@ export const adjustAllRankDates = (
   calcEarlyProbability(qualifiedMaps);
 };
 
+type StoredMapProperties = [number, number | null, number | null, boolean];
+
 export const storeMapProperties = (qualifiedData: BeatmapSetDatabase[]) => {
-  const previousData: {
-    [key: number]: [number, number | null, number | null];
-  } = {};
+  const previousData: { [key: number]: StoredMapProperties } = {};
 
   qualifiedData.forEach((beatmapSet) => {
     previousData[beatmapSet.id] = [
       beatmapSet.rank_date,
       beatmapSet.rank_date_early,
       beatmapSet.probability,
+      beatmapSet.unresolved,
     ];
   });
 
@@ -221,19 +214,18 @@ export const getFormattedMapsFromDatabase = async (
 
 export const getUpdatedMaps = (
   qualifiedMaps: BeatmapSet[][],
-  previousData: {
-    [key: number]: [number, number | null, number | null];
-  },
+  previousData: { [key: number]: StoredMapProperties },
 ) => {
   const mapsToUpdate: BeatmapSetDatabase[] = [];
   const updatedMapIds: number[] = [];
 
   qualifiedMaps.forEach((beatmapSets) => {
     beatmapSets.forEach((beatmapSet) => {
-      const currentData = [
+      const currentData: StoredMapProperties = [
         beatmapSet.rankDate!.getTime() / 1000,
         beatmapSet.rankDateEarly!.getTime() / 1000,
         beatmapSet.probability,
+        beatmapSet.unresolved,
       ];
 
       // if rankDate/rankDateEarly/probability has changed or new qualified map
