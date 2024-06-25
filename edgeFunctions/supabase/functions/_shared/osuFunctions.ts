@@ -510,7 +510,7 @@ export const calcEarlyProbability = (qualifiedMaps: BeatmapSet[][]) => {
   qualifiedMaps.forEach((beatmapSets) => {
     for (const beatmapSet of beatmapSets) {
       // assume map will be ranked early if probability > SPLIT to simplify calculations
-      const key = beatmapSet.probability ?? 0 > SPLIT
+      const key = (beatmapSet.probability ?? 0) > SPLIT
         ? roundMinutes(beatmapSet.rankDateEarly!.getTime(), true)
         : beatmapSet.rankDate!.getTime();
 
