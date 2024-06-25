@@ -65,6 +65,8 @@ const updateUnresolved = async () => {
     previousData,
   );
 
+  console.log(mapsToUpdate);
+
   const { error: errorBeatmapSets } = await supabase.from("beatmapsets").upsert(
     mapsToUpdate,
   );

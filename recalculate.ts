@@ -51,6 +51,9 @@ const recalculate = async () => {
     previousData,
   );
 
+  console.log(updatedMapIds);
+  return;
+
   const { error: errorBeatmapSets } = await supabase.from("beatmapsets").upsert(
     mapsToUpdate,
   );

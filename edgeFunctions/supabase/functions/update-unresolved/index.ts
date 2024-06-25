@@ -97,6 +97,7 @@ Deno.serve(async (_req) => {
     mapsToUpdate.length === 1 ? "" : "s"
   } updated`;
   console.log(`${new Date().toISOString()} - ${message}`);
+  console.log(updatedMapIds);
 
   return new Response(JSON.stringify({ message }), {
     headers: { "Content-Type": "application/json" },

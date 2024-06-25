@@ -52,25 +52,8 @@ export const adjustRankDates = (
       Math.max(qualifiedMap.queueDate!.getTime(), compareDate),
     );
 
-    if (
-      prev?.getTime() !== qualifiedMap.rankDateEarly.getTime()
-    ) {
-      console.log(qualifiedMap.id, "-", prev, qualifiedMap.rankDateEarly);
-      console.log(qualifiedMap.id, "- queueDate:", qualifiedMap.queueDate);
-      console.log(qualifiedMap.id, "- compareDate:", new Date(compareDate));
-      if (compareMap != null && compareMap.rankDate != null) {
-        console.log(
-          qualifiedMap.id,
-          `- compareMap.rankDate ${compareMap.id}:`,
-          compareMap.rankDate,
-        );
-      } else {
-        console.log(i - RANK_PER_DAY, rankedMaps.length);
-      }
-    }
-
-    qualifiedMap.probability = null;
     // don't calculate probability for maps using rounded compare date
+    qualifiedMap.probability = null;
     if (
       qualifiedMap.queueDate!.getTime() > compareDate ||
       i < rankedMaps.length + RANK_PER_DAY
@@ -134,6 +117,23 @@ export const adjustRankDates = (
         }
         qualifiedMap.rankDateEarly = qualifiedMap.rankDate;
         qualifiedMap.probability = 0;
+      }
+    }
+
+    if (
+      prev?.getTime() !== qualifiedMap.rankDateEarly.getTime()
+    ) {
+      console.log(qualifiedMap.id, "-", prev, qualifiedMap.rankDateEarly);
+      console.log(qualifiedMap.id, "- queueDate:", qualifiedMap.queueDate);
+      console.log(qualifiedMap.id, "- compareDate:", new Date(compareDate));
+      if (compareMap != null && compareMap.rankDate != null) {
+        console.log(
+          qualifiedMap.id,
+          `- compareMap.rankDate ${compareMap.id}:`,
+          compareMap.rankDate,
+        );
+      } else {
+        console.log(i - RANK_PER_DAY, rankedMaps.length);
       }
     }
   }
@@ -258,6 +258,12 @@ export const getUpdatedMaps = (
       ) {
         mapsToUpdate.push(beatmapSetToDatabase(beatmapSet));
         updatedMapIds.push(beatmapSet.id);
+        console.log(
+          beatmapSet.id,
+          "-",
+          previousData[beatmapSet.id],
+          currentData,
+        );
       }
     });
   });
