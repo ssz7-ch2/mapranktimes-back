@@ -1,7 +1,14 @@
 import { createClient } from "@supabase/supabase-js";
 import { getBeatmapSet } from "./osuRequests";
 import { Database } from "./database.types";
-import { beatmapSetToDatabase } from "./utils";
+import {
+  adjustRankDates,
+  calcEarlyProbability,
+  getFormattedMapsFromDatabase,
+  getUpdatedMaps,
+  storeMapProperties,
+} from "./osuHelpers";
+import { Redis } from "@upstash/redis";
 
 require("dotenv").config();
 
@@ -16,11 +23,58 @@ const insertMap = async (beatmapSetId: number) => {
 
   const appData = res[0];
 
+  const { qualifiedMaps, rankedMaps, qualifiedData } =
+    await getFormattedMapsFromDatabase(supabase);
+
+  const previousData = storeMapProperties(qualifiedData);
+
   const newBeatmapSet = await getBeatmapSet(appData.access_token, beatmapSetId);
-  const { error: errorBeatmapSets } = await supabase
-    .from("beatmapsets")
-    .upsert([beatmapSetToDatabase(newBeatmapSet)]);
+
+  if (newBeatmapSet.queueDate) {
+    // need to make sure to delete map from database before running this script
+    qualifiedMaps[newBeatmapSet.mode].push(newBeatmapSet);
+    qualifiedMaps[newBeatmapSet.mode].sort((a, b) =>
+      a.queueDate!.getTime() - b.queueDate!.getTime()
+    );
+  } else {
+    rankedMaps[newBeatmapSet.mode].push(newBeatmapSet);
+    rankedMaps[newBeatmapSet.mode].sort((a, b) =>
+      a.rankDate!.getTime() - b.rankDate!.getTime()
+    );
+  }
+
+  adjustRankDates(
+    qualifiedMaps[newBeatmapSet.mode],
+    rankedMaps[newBeatmapSet.mode],
+  );
+  calcEarlyProbability(qualifiedMaps);
+
+  const { mapsToUpdate, updatedMapIds } = getUpdatedMaps(
+    qualifiedMaps,
+    previousData,
+  );
+
+  const { error: errorBeatmapSets } = await supabase.from("beatmapsets").upsert(
+    mapsToUpdate,
+  );
   if (errorBeatmapSets) console.log(errorBeatmapSets);
+
+  if (updatedMapIds.length > 0) {
+    const redis = Redis.fromEnv();
+    const timestamp = Date.now();
+
+    redis.set(`updates-${timestamp}`, JSON.stringify(mapsToUpdate), { ex: 60 });
+
+    const { error } = await supabase
+      .from("updates")
+      .upsert({
+        id: 1,
+        timestamp,
+        updated_maps: updatedMapIds,
+        deleted_maps: [],
+      });
+    if (error) console.log(error);
+  }
 };
 
 insertMap(0);

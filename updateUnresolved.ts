@@ -1,6 +1,13 @@
 import { createClient } from "@supabase/supabase-js";
 import { getAccessToken, getMapsUnresolved } from "./osuRequests";
 import { Database } from "./database.types";
+import { Redis } from "@upstash/redis";
+import {
+  adjustAllRankDates,
+  getFormattedMapsFromDatabase,
+  getUpdatedMaps,
+  storeMapProperties,
+} from "./osuHelpers";
 
 require("dotenv").config();
 
@@ -30,56 +37,55 @@ const updateUnresolved = async () => {
     if (error) console.log(error);
   }
 
-  const mapsToUpdate: { id: number; unresolved: boolean }[] = [];
-  const updatedMaps: number[] = [];
+  const { qualifiedMaps, rankedMaps, qualifiedData } =
+    await getFormattedMapsFromDatabase(supabase);
 
-  let { data: unresolvedMaps, error: errorUnresolved } = await supabase
-    .from("beatmapsets")
-    .select("*")
-    .is("unresolved", true);
-  if (!unresolvedMaps || errorUnresolved) {
-    throw new Error(`failed to get unresolvedMaps. Error: ${errorUnresolved}`);
-  }
+  const previousData = storeMapProperties(qualifiedData);
 
   const updatedUnresolvedMaps = await getMapsUnresolved(accessToken);
   const unresolvedMapIds = updatedUnresolvedMaps.map((beatmapSet) =>
     beatmapSet.id
   );
-  unresolvedMaps.forEach((beatmapSet) => {
-    if (!unresolvedMapIds.includes(beatmapSet.id)) {
-      mapsToUpdate.push({
-        id: beatmapSet.id,
-        unresolved: false,
-      });
-      updatedMaps.push(beatmapSet.id);
-    } else {
-      // remove maps that are in both
-      // remaining ids will be newly unresolved maps
-      unresolvedMapIds.splice(unresolvedMapIds.indexOf(beatmapSet.id), 1);
-    }
-  });
 
-  unresolvedMapIds.forEach((beatmapSetId) => {
-    mapsToUpdate.push({
-      id: beatmapSetId,
-      unresolved: true,
-    });
-    updatedMaps.push(beatmapSetId);
-  });
+  // idk if there's a better way to do this
+  qualifiedMaps.forEach((beatmapSets) =>
+    beatmapSets.forEach((beatmapSet) => {
+      if (!unresolvedMapIds.includes(beatmapSet.id)) {
+        beatmapSet.unresolved = false;
+      } else {
+        beatmapSet.unresolved = true;
+      }
+    })
+  );
 
-  for (const beatmapSet of mapsToUpdate) {
-    // use update here since mapsToUpdate.length is usually around 0-1
-    const { error } = await supabase
-      .from("beatmapsets")
-      .update({ unresolved: beatmapSet.unresolved })
-      .eq("id", beatmapSet.id);
-    if (error) console.log(error);
-  }
+  adjustAllRankDates(qualifiedMaps, rankedMaps);
 
-  if (updatedMaps.length > 0) {
+  const { mapsToUpdate, updatedMapIds } = getUpdatedMaps(
+    qualifiedMaps,
+    previousData,
+  );
+
+  console.log(mapsToUpdate);
+
+  const { error: errorBeatmapSets } = await supabase.from("beatmapsets").upsert(
+    mapsToUpdate,
+  );
+  if (errorBeatmapSets) console.log(errorBeatmapSets);
+
+  if (updatedMapIds.length > 0) {
+    const redis = Redis.fromEnv();
+    const timestamp = Date.now();
+
+    redis.set(`updates-${timestamp}`, JSON.stringify(mapsToUpdate), { ex: 60 });
+
     const { error } = await supabase
       .from("updates")
-      .upsert({ id: 1, updated_maps: updatedMaps, deleted_maps: [] });
+      .upsert({
+        id: 1,
+        timestamp,
+        updated_maps: updatedMapIds,
+        deleted_maps: [],
+      });
     if (error) console.log(error);
   }
 

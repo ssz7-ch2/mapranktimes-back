@@ -1,9 +1,13 @@
 import { createClient } from "@supabase/supabase-js";
 import { getAccessToken } from "./osuRequests";
-import { beatmapSetToDatabase, databaseToSplitModes } from "./utils";
 import { Database } from "./database.types";
-import { DAY, HOUR } from "./timeConstants";
-import { adjustAllRankDates } from "./osuHelpers";
+import {
+  adjustAllRankDates,
+  getFormattedMapsFromDatabase,
+  getUpdatedMaps,
+  storeMapProperties,
+} from "./osuHelpers";
+import { Redis } from "@upstash/redis";
 
 require("dotenv").config();
 
@@ -18,43 +22,11 @@ const recalculate = async () => {
 
   const appData = res[0];
 
-  let updateAppData = false;
-
   let accessToken = appData.access_token;
   let expireDate = appData.expire_date;
 
   if (accessToken === null || Date.now() >= expireDate) {
     [accessToken, expireDate] = await getAccessToken();
-    updateAppData = true;
-  }
-
-  const { data: qualifiedData, error: errorQualified } = await supabase
-    .from("beatmapsets")
-    .select("*")
-    .not("queue_date", "is", null);
-
-  const { data: rankedData, error: errorRanked } = await supabase
-    .from("beatmapsets")
-    .select("*")
-    .is("queue_date", null)
-    .gt("rank_date", Math.floor((Date.now() - DAY - HOUR) / 1000));
-
-  if (!rankedData || !qualifiedData) {
-    throw new Error(
-      `missing data. errorQualified ${errorQualified}\nerrorRanked ${errorRanked}`,
-    );
-  }
-
-  const qualifiedMaps = databaseToSplitModes(
-    qualifiedData.sort((a, b) => a.queue_date! - b.queue_date!),
-  );
-  const rankedMaps = databaseToSplitModes(
-    rankedData.sort((a, b) => a.rank_date - b.rank_date),
-  );
-
-  adjustAllRankDates(qualifiedMaps, rankedMaps);
-
-  if (updateAppData) {
     const { error } = await supabase
       .from("app_data")
       .update(
@@ -67,14 +39,41 @@ const recalculate = async () => {
     if (error) console.log(error);
   }
 
-  const formattedData = qualifiedMaps.flat().map((beatmapSet) =>
-    beatmapSetToDatabase(beatmapSet)
+  const { qualifiedMaps, rankedMaps, qualifiedData } =
+    await getFormattedMapsFromDatabase(supabase);
+
+  const previousData = storeMapProperties(qualifiedData);
+
+  adjustAllRankDates(qualifiedMaps, rankedMaps);
+
+  const { mapsToUpdate, updatedMapIds } = getUpdatedMaps(
+    qualifiedMaps,
+    previousData,
   );
 
-  let { error: errorBeatmapSets } = await supabase.from("beatmapsets").upsert(
-    formattedData,
+  console.log(updatedMapIds);
+
+  const { error: errorBeatmapSets } = await supabase.from("beatmapsets").upsert(
+    mapsToUpdate,
   );
   if (errorBeatmapSets) console.log(errorBeatmapSets);
+
+  if (updatedMapIds.length > 0) {
+    const redis = Redis.fromEnv();
+    const timestamp = Date.now();
+
+    redis.set(`updates-${timestamp}`, JSON.stringify(mapsToUpdate), { ex: 60 });
+
+    const { error } = await supabase
+      .from("updates")
+      .upsert({
+        id: 1,
+        timestamp,
+        updated_maps: updatedMapIds,
+        deleted_maps: [],
+      });
+    if (error) console.log(error);
+  }
 };
 
 if (require.main === module) {

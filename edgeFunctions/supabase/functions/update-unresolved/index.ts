@@ -6,8 +6,16 @@
 /// <reference types="https://esm.sh/@supabase/functions-js/src/edge-runtime.d.ts" />
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getAccessToken, getMapsUnresolved } from "../_shared/osuFunctions.ts";
+import {
+  adjustAllRankDates,
+  getAccessToken,
+  getFormattedMapsFromDatabase,
+  getMapsUnresolved,
+  getUpdatedMaps,
+  storeMapProperties,
+} from "../_shared/osuFunctions.ts";
 import { Database } from "../_shared/database.types.ts";
+import { Redis } from "npm:@upstash/redis@^1.31.5";
 
 Deno.serve(async (_req) => {
   const supabase = createClient<Database>(
@@ -35,56 +43,53 @@ Deno.serve(async (_req) => {
     if (error) console.log(error);
   }
 
-  const mapsToUpdate: { id: number; unresolved: boolean }[] = [];
-  const updatedMaps: number[] = [];
+  const { qualifiedMaps, rankedMaps, qualifiedData } =
+    await getFormattedMapsFromDatabase(supabase);
 
-  const { data: unresolvedMaps, error: errorUnresolved } = await supabase
-    .from("beatmapsets")
-    .select("*")
-    .is("unresolved", true);
-  if (!unresolvedMaps || errorUnresolved) {
-    throw new Error(`failed to get unresolvedMaps. Error: ${errorUnresolved}`);
-  }
+  const previousData = storeMapProperties(qualifiedData);
 
   const updatedUnresolvedMaps = await getMapsUnresolved(accessToken);
   const unresolvedMapIds = updatedUnresolvedMaps.map((beatmapSet) =>
     beatmapSet.id
   );
-  unresolvedMaps.forEach((beatmapSet) => {
-    if (!unresolvedMapIds.includes(beatmapSet.id)) {
-      mapsToUpdate.push({
-        id: beatmapSet.id,
-        unresolved: false,
-      });
-      updatedMaps.push(beatmapSet.id);
-    } else {
-      // remove maps that are in both
-      // remaining ids will be newly unresolved maps
-      unresolvedMapIds.splice(unresolvedMapIds.indexOf(beatmapSet.id), 1);
-    }
-  });
 
-  unresolvedMapIds.forEach((beatmapSetId) => {
-    mapsToUpdate.push({
-      id: beatmapSetId,
-      unresolved: true,
-    });
-    updatedMaps.push(beatmapSetId);
-  });
+  // idk if there's a better way to do this
+  qualifiedMaps.forEach((beatmapSets) =>
+    beatmapSets.forEach((beatmapSet) => {
+      if (!unresolvedMapIds.includes(beatmapSet.id)) {
+        beatmapSet.unresolved = false;
+      } else {
+        beatmapSet.unresolved = true;
+      }
+    })
+  );
 
-  for (const beatmapSet of mapsToUpdate) {
-    // use update here since mapsToUpdate.length is usually around 0-1
-    const { error } = await supabase
-      .from("beatmapsets")
-      .update({ unresolved: beatmapSet.unresolved })
-      .eq("id", beatmapSet.id);
-    if (error) console.log(error);
-  }
+  adjustAllRankDates(qualifiedMaps, rankedMaps);
 
-  if (updatedMaps.length > 0) {
+  const { mapsToUpdate, updatedMapIds } = getUpdatedMaps(
+    qualifiedMaps,
+    previousData,
+  );
+
+  const { error: errorBeatmapSets } = await supabase.from("beatmapsets").upsert(
+    mapsToUpdate,
+  );
+  if (errorBeatmapSets) console.log(errorBeatmapSets);
+
+  if (updatedMapIds.length > 0) {
+    const redis = Redis.fromEnv();
+    const timestamp = Date.now();
+
+    redis.set(`updates-${timestamp}`, JSON.stringify(mapsToUpdate), { ex: 60 });
+
     const { error } = await supabase
       .from("updates")
-      .upsert({ id: 1, updated_maps: updatedMaps, deleted_maps: [] });
+      .upsert({
+        id: 1,
+        timestamp,
+        updated_maps: updatedMapIds,
+        deleted_maps: [],
+      });
     if (error) console.log(error);
   }
 
@@ -92,6 +97,7 @@ Deno.serve(async (_req) => {
     mapsToUpdate.length === 1 ? "" : "s"
   } updated`;
   console.log(`${new Date().toISOString()} - ${message}`);
+  console.log(updatedMapIds);
 
   return new Response(JSON.stringify({ message }), {
     headers: { "Content-Type": "application/json" },

@@ -8,16 +8,17 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   adjustRankDates,
-  beatmapSetToDatabase,
   calcEarlyProbability,
-  databaseToSplitModes,
   getAccessToken,
   getBeatmapSet,
   getEventsAfter,
+  getFormattedMapsFromDatabase,
+  getUpdatedMaps,
+  storeMapProperties,
 } from "../_shared/osuFunctions.ts";
-import { BeatmapSet, BeatmapSetDatabase } from "../_shared/beatmap.types.ts";
-import { DAY, HOUR } from "../_shared/constants.ts";
+import { BeatmapSet } from "../_shared/beatmap.types.ts";
 import { Database } from "../_shared/database.types.ts";
+import { Redis } from "npm:@upstash/redis@^1.31.5";
 
 const removeMapFromQualified = (
   qualifiedMaps: BeatmapSet[][],
@@ -47,7 +48,7 @@ Deno.serve(async (_req: Request) => {
     beatmapSetId: number,
     rankedDate: Date,
   ) => {
-    const [beatmapSetTarget, start] = removeMapFromQualified(
+    const [beatmapSetTarget] = removeMapFromQualified(
       qualifiedMaps,
       beatmapSetId,
     );
@@ -64,12 +65,12 @@ Deno.serve(async (_req: Request) => {
     beatmapSetTarget.rankDate = rankedDate;
     beatmapSetTarget.rankDateEarly = null;
     beatmapSetTarget.queueDate = null;
+    beatmapSetTarget.unresolved = false;
 
     rankedMaps[beatmapSetTarget.mode].push(beatmapSetTarget);
     adjustRankDates(
       qualifiedMaps[beatmapSetTarget.mode],
       rankedMaps[beatmapSetTarget.mode],
-      start,
     );
 
     const { error } = await supabase
@@ -78,6 +79,7 @@ Deno.serve(async (_req: Request) => {
         queue_date: null,
         rank_date: rankedDate.getTime() / 1000,
         rank_date_early: null,
+        unresolved: false,
       })
       .eq("id", beatmapSetId);
     if (error) console.log(error);
@@ -149,46 +151,15 @@ Deno.serve(async (_req: Request) => {
     );
     if (newEvents.length === 0) return newLastEventId;
 
+    const { qualifiedMaps, rankedMaps, qualifiedData } =
+      await getFormattedMapsFromDatabase(supabase);
+
     // keep track of state before change
-    const { data: qualifiedData, error: errorQualified } = await supabase.from(
-      "beatmapsets",
-    ).select("*").not("queue_date", "is", null);
-
-    const { data: rankedData, error: errorRanked } = await supabase
-      .from("beatmapsets")
-      .select("*")
-      .is("queue_date", null)
-      .gt("rank_date", Math.floor((Date.now() - DAY - HOUR) / 1000));
-
-    if (!rankedData || !qualifiedData) {
-      throw new Error(
-        `missing data. errorQualified ${errorQualified}\nerrorRanked ${errorRanked}`,
-      );
-    }
-
-    const previousData: {
-      [key: number]: [number, number | null, number | null];
-    } = {};
-
-    qualifiedData.forEach((beatmapSet) => {
-      previousData[beatmapSet.id] = [
-        beatmapSet.rank_date,
-        beatmapSet.rank_date_early,
-        beatmapSet.probability,
-      ];
-    });
-
-    const qualifiedMaps = databaseToSplitModes(
-      qualifiedData.sort((a, b) => a.queue_date! - b.queue_date!),
-    );
-    const rankedMaps = databaseToSplitModes(
-      rankedData.sort((a, b) => a.rank_date - b.rank_date),
-    );
+    const previousData = storeMapProperties(qualifiedData);
 
     let currentEventId: number;
 
-    const updatedMaps: number[] = [];
-    const deletedMaps: number[] = [];
+    let deletedMapIds: number[] = [];
 
     try {
       for (const mapEvent of newEvents) {
@@ -207,7 +178,7 @@ Deno.serve(async (_req: Request) => {
               mapEvent.createdAt,
             );
             // deleted from client side
-            deletedMaps.push(mapEvent.beatmapSetId);
+            deletedMapIds.push(mapEvent.beatmapSetId);
             break;
           case "qualify":
             await qualifyEvent(
@@ -216,6 +187,11 @@ Deno.serve(async (_req: Request) => {
               mapEvent.beatmapSetId,
               accessToken,
             );
+            // if a map is disqualified and immediately requalified, the map will still be in deletedMaps
+            // so we need to remove it
+            deletedMapIds = deletedMapIds.filter((mapId) =>
+              mapId !== mapEvent.beatmapSetId
+            );
             break;
           case "disqualify":
             await disqualifyEvent(
@@ -223,7 +199,7 @@ Deno.serve(async (_req: Request) => {
               rankedMaps,
               mapEvent.beatmapSetId,
             );
-            deletedMaps.push(mapEvent.beatmapSetId);
+            deletedMapIds.push(mapEvent.beatmapSetId);
             break;
           default:
             break;
@@ -236,40 +212,35 @@ Deno.serve(async (_req: Request) => {
 
     calcEarlyProbability(qualifiedMaps);
 
-    const mapsToUpdate: BeatmapSetDatabase[] = [];
-
-    qualifiedMaps.forEach((beatmapSets) => {
-      beatmapSets.forEach((beatmapSet) => {
-        const currentData = [
-          beatmapSet.rankDate!.getTime() / 1000,
-          beatmapSet.rankDateEarly!.getTime() / 1000,
-          beatmapSet.probability,
-        ];
-
-        // if rankDate/rankDateEarly/probability has changed or new qualified map
-        if (
-          !(beatmapSet.id in previousData) ||
-          previousData[beatmapSet.id].reduce(
-            (updated, value, i) => updated || currentData[i] !== value,
-            false,
-          )
-        ) {
-          mapsToUpdate.push(beatmapSetToDatabase(beatmapSet));
-          updatedMaps.push(beatmapSet.id);
-        }
-      });
-    });
+    const { mapsToUpdate, updatedMapIds } = getUpdatedMaps(
+      qualifiedMaps,
+      previousData,
+    );
 
     const { error } = await supabase.from("beatmapsets").upsert(mapsToUpdate);
     if (error) console.log(error);
 
-    if (updatedMaps.length + deletedMaps.length > 0) {
+    const timestamp = Date.now();
+
+    if (mapsToUpdate.length > 0) {
+      const redis = new Redis({
+        url: Deno.env.get("UPSTASH_REDIS_REST_URL")!,
+        token: Deno.env.get("UPSTASH_REDIS_REST_TOKEN")!,
+      });
+
+      redis.set(`updates-${timestamp}`, JSON.stringify(mapsToUpdate), {
+        ex: 60,
+      });
+    }
+
+    if (updatedMapIds.length + deletedMapIds.length > 0) {
       const { error } = await supabase
         .from("updates")
         .upsert({
           id: 1,
-          updated_maps: updatedMaps,
-          deleted_maps: deletedMaps,
+          timestamp,
+          updated_maps: updatedMapIds,
+          deleted_maps: deletedMapIds,
         });
       if (error) console.log(error);
     }

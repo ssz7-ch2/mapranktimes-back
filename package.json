@@ -1,13 +1,13 @@
 {
   "dependencies": {
     "@supabase/supabase-js": "^2.43.4",
+    "@upstash/redis": "^1.31.5",
     "dotenv": "^16.4.5",
     "itertools": "^2.3.2"
   },
   "name": "mapranktimes-back",
   "version": "1.0.0",
   "main": "config.js",
-  "devDependencies": {},
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
