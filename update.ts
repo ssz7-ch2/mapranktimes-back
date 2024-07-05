@@ -88,17 +88,13 @@ const qualifyEvent = async (
 
   // reverse order since usually new qualified maps are added near the end of list
   let i = qualifiedMaps[newBeatmapSet.mode].length;
-  if (i === 0) {
-    qualifiedMaps[newBeatmapSet.mode].push(newBeatmapSet);
-  } else {
-    for (; i > 0; i--) {
-      if (
-        newBeatmapSet.queueDate! >=
-          qualifiedMaps[newBeatmapSet.mode][i - 1].queueDate!
-      ) {
-        qualifiedMaps[newBeatmapSet.mode].splice(i, 0, newBeatmapSet);
-        break;
-      }
+  for (; i >= 0; i--) {
+    if (
+      i === 0 || newBeatmapSet.queueDate! >=
+        qualifiedMaps[newBeatmapSet.mode][i - 1].queueDate!
+    ) {
+      qualifiedMaps[newBeatmapSet.mode].splice(i, 0, newBeatmapSet);
+      break;
     }
   }
 
