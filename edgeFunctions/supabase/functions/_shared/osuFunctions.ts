@@ -73,7 +73,7 @@ const beatmapSetFromAPI = ({
     title,
     mapper: creator,
     mapperId: user_id,
-    probability: 0,
+    probability: null,
     unresolved: false,
     beatmaps: beatmaps
       ?.map((beatmap) => beatmapFromAPI(beatmap))

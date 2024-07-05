@@ -66,6 +66,7 @@ Deno.serve(async (_req: Request) => {
     beatmapSetTarget.rankDateEarly = null;
     beatmapSetTarget.queueDate = null;
     beatmapSetTarget.unresolved = false;
+    beatmapSetTarget.probability = null;
 
     rankedMaps[beatmapSetTarget.mode].push(beatmapSetTarget);
     adjustRankDates(
@@ -80,6 +81,7 @@ Deno.serve(async (_req: Request) => {
         rank_date: rankedDate.getTime() / 1000,
         rank_date_early: null,
         unresolved: false,
+        probability: null,
       })
       .eq("id", beatmapSetId);
     if (error) console.log(error);
