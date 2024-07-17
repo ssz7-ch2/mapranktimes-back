@@ -38,5 +38,5 @@ export const probabilityAfter = (seconds: number, otherModes?: number[]) => {
     }
     sum += modeSum / permSums.length;
   }
-  return +`${(sum / 4)}`.slice(0, 7);
+  return Math.floor((sum / 4) * 100000) / 100000;
 };
