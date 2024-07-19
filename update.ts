@@ -112,10 +112,19 @@ const disqualifyEvent = async (
   rankedMaps: BeatmapSet[][],
   beatmapSetId: number,
 ) => {
-  const [beatmapSetTarget, start] = removeMapFromQualified(
-    qualifiedMaps,
-    beatmapSetId,
-  );
+  let beatmapSetTarget: BeatmapSet;
+  let start: number;
+
+  try {
+    [beatmapSetTarget, start] = removeMapFromQualified(
+      qualifiedMaps,
+      beatmapSetId,
+    );
+  } catch {
+    // Deranked map
+    return;
+  }
+
   adjustRankDates(
     qualifiedMaps[beatmapSetTarget.mode],
     rankedMaps[beatmapSetTarget.mode],
