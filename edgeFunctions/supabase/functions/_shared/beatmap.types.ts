@@ -1,4 +1,6 @@
-type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
+type Json = string | number | boolean | null | {
+  [key: string]: Json | undefined;
+} | Json[];
 
 export type BeatmapSet = {
   id: number;
@@ -33,7 +35,7 @@ export type BeatmapSetAPI = {
   user_id: number;
   ranked_date: string;
   beatmaps: BeatmapAPI[];
-  status: "qualified" | "ranked";
+  status: "qualified" | "ranked" | "pending";
 };
 
 export type BeatmapAPI = {

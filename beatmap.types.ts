@@ -33,7 +33,7 @@ export type BeatmapSetAPI = {
   user_id: number;
   ranked_date: string;
   beatmaps: BeatmapAPI[];
-  status: "qualified" | "ranked";
+  status: "qualified" | "ranked" | "pending";
 };
 
 export type BeatmapAPI = {

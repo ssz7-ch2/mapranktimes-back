@@ -293,7 +293,7 @@ export const getBeatmapSet = async (
   );
 
   const beatmapSet = beatmapSetFromAPI(data);
-  if (data.status === "qualified") {
+  if (data.status !== "ranked") {
     await setQueueTime(beatmapSet, accessToken);
 
     // very unlikely that a map has unresolved mods right after getting qualified
