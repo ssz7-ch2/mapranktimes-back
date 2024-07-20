@@ -368,12 +368,23 @@ export const setQueueTime = async (
     .reverse();
 
   let previousQueueDuration = 0;
-  let startDate: number;
+  let startDate: number | null = null;
 
   events.forEach((event) => {
-    if (event.type === "qualify") startDate = event.time;
-    else if (event.type === "disqualify" && startDate != null) {
-      previousQueueDuration += event.time - startDate;
+    switch (event.type) {
+      case "qualify":
+        startDate = event.time;
+        break;
+      case "disqualify":
+        if (startDate != null) {
+          previousQueueDuration += event.time - startDate;
+        }
+        break;
+      case "rank":
+        previousQueueDuration = 0;
+        break;
+      default:
+        break;
     }
   });
 
