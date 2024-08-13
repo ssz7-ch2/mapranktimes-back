@@ -31,12 +31,16 @@ const insertMap = async (beatmapSetId: number) => {
   const newBeatmapSet = await getBeatmapSet(appData.access_token, beatmapSetId);
 
   if (newBeatmapSet.queueDate) {
-    // need to make sure to delete map from database before running this script
+    qualifiedMaps[newBeatmapSet.mode] = qualifiedMaps[newBeatmapSet.mode]
+      .filter((beatmapSet) => beatmapSet.id !== newBeatmapSet.id);
     qualifiedMaps[newBeatmapSet.mode].push(newBeatmapSet);
     qualifiedMaps[newBeatmapSet.mode].sort((a, b) =>
       a.queueDate!.getTime() - b.queueDate!.getTime()
     );
   } else {
+    rankedMaps[newBeatmapSet.mode] = rankedMaps[newBeatmapSet.mode].filter(
+      (beatmapSet) => beatmapSet.id !== newBeatmapSet.id,
+    );
     rankedMaps[newBeatmapSet.mode].push(newBeatmapSet);
     rankedMaps[newBeatmapSet.mode].sort((a, b) =>
       a.rankDate!.getTime() - b.rankDate!.getTime()

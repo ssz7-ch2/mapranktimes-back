@@ -308,7 +308,7 @@ export const getMapEvents = async (
   beatmapSetId: number,
 ) => {
   const url =
-    `https://osu.ppy.sh/api/v2/beatmapsets/events?types[]=qualify&types[]=disqualify&beatmapset_id=${beatmapSetId}&limit=50`;
+    `https://osu.ppy.sh/api/v2/beatmapsets/events?types[]=qualify&types[]=disqualify&types[]=rank&beatmapset_id=${beatmapSetId}&limit=50`;
   const data = await getAPI<{ events: MapEventAPI[] }>(url, accessToken);
 
   return data.events;
@@ -382,6 +382,7 @@ export const setQueueTime = async (
         break;
       case "rank":
         previousQueueDuration = 0;
+        startDate = null;
         break;
       default:
         break;
