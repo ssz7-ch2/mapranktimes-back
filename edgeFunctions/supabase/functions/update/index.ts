@@ -115,7 +115,7 @@ Deno.serve(async (_req: Request) => {
     );
   };
 
-  const disqualifyEvent = async (
+  const disqualifyEvent = (
     qualifiedMaps: BeatmapSet[][],
     rankedMaps: BeatmapSet[][],
     beatmapSetId: number,
@@ -138,12 +138,6 @@ Deno.serve(async (_req: Request) => {
       rankedMaps[beatmapSetTarget.mode],
       start,
     );
-
-    const { error } = await supabase.from("beatmapsets").delete().eq(
-      "id",
-      beatmapSetId,
-    );
-    if (error) console.log(error);
   };
 
   const checkEvents = async (accessToken: string, lastEventId: number) => {
@@ -201,7 +195,7 @@ Deno.serve(async (_req: Request) => {
             );
             break;
           case "disqualify":
-            await disqualifyEvent(
+            disqualifyEvent(
               qualifiedMaps,
               rankedMaps,
               mapEvent.beatmapSetId,
@@ -226,6 +220,13 @@ Deno.serve(async (_req: Request) => {
 
     const { error } = await supabase.from("beatmapsets").upsert(mapsToUpdate);
     if (error) console.log(error);
+
+    const { error: deleteError } = await supabase.from("beatmapsets").delete()
+      .in(
+        "id",
+        deletedMapIds,
+      );
+    if (deleteError) console.log(deleteError);
 
     const timestamp = Date.now();
 

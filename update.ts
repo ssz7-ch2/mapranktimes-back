@@ -107,7 +107,7 @@ const qualifyEvent = async (
   );
 };
 
-const disqualifyEvent = async (
+const disqualifyEvent = (
   qualifiedMaps: BeatmapSet[][],
   rankedMaps: BeatmapSet[][],
   beatmapSetId: number,
@@ -130,12 +130,6 @@ const disqualifyEvent = async (
     rankedMaps[beatmapSetTarget.mode],
     start,
   );
-
-  const { error } = await supabase.from("beatmapsets").delete().eq(
-    "id",
-    beatmapSetId,
-  );
-  console.log(error);
 };
 
 const checkEvents = async (accessToken: string, lastEventId: number) => {
@@ -196,7 +190,7 @@ const checkEvents = async (accessToken: string, lastEventId: number) => {
           );
           break;
         case "disqualify":
-          await disqualifyEvent(
+          disqualifyEvent(
             qualifiedMaps,
             rankedMaps,
             mapEvent.beatmapSetId,
@@ -221,6 +215,13 @@ const checkEvents = async (accessToken: string, lastEventId: number) => {
 
   const { error } = await supabase.from("beatmapsets").upsert(mapsToUpdate);
   if (error) console.log(error);
+
+  const { error: deleteError } = await supabase.from("beatmapsets").delete()
+    .in(
+      "id",
+      deletedMapIds,
+    );
+  if (deleteError) console.log(deleteError);
 
   const timestamp = Date.now();
 
