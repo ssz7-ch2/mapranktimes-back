@@ -155,7 +155,8 @@ const checkEvents = async (accessToken: string, lastEventId: number) => {
 
   let currentEventId: number;
 
-  let deletedMapIds: number[] = [];
+  let disqualifiedMapIds: number[] = [];
+  const rankedMapIds: number[] = [];
 
   try {
     for (const mapEvent of newEvents) {
@@ -174,7 +175,7 @@ const checkEvents = async (accessToken: string, lastEventId: number) => {
             mapEvent.createdAt,
           );
           // deleted from client side
-          deletedMapIds.push(mapEvent.beatmapSetId);
+          rankedMapIds.push(mapEvent.beatmapSetId);
           break;
         case "qualify":
           await qualifyEvent(
@@ -185,7 +186,7 @@ const checkEvents = async (accessToken: string, lastEventId: number) => {
           );
           // if a map is disqualified and immediately requalified, the map will still be in deletedMaps
           // so we need to remove it
-          deletedMapIds = deletedMapIds.filter((mapId) =>
+          disqualifiedMapIds = disqualifiedMapIds.filter((mapId) =>
             mapId !== mapEvent.beatmapSetId
           );
           break;
@@ -195,7 +196,7 @@ const checkEvents = async (accessToken: string, lastEventId: number) => {
             rankedMaps,
             mapEvent.beatmapSetId,
           );
-          deletedMapIds.push(mapEvent.beatmapSetId);
+          disqualifiedMapIds.push(mapEvent.beatmapSetId);
           break;
         default:
           break;
@@ -219,7 +220,7 @@ const checkEvents = async (accessToken: string, lastEventId: number) => {
   const { error: deleteError } = await supabase.from("beatmapsets").delete()
     .in(
       "id",
-      deletedMapIds,
+      disqualifiedMapIds,
     );
   if (deleteError) console.log(deleteError);
 
@@ -233,14 +234,16 @@ const checkEvents = async (accessToken: string, lastEventId: number) => {
     });
   }
 
-  if (updatedMapIds.length + deletedMapIds.length > 0) {
+  if (
+    updatedMapIds.length + disqualifiedMapIds.length + rankedMapIds.length > 0
+  ) {
     const { error } = await supabase
       .from("updates")
       .upsert({
         id: 1,
         timestamp,
         updated_maps: updatedMapIds,
-        deleted_maps: deletedMapIds,
+        deleted_maps: [...rankedMapIds, ...disqualifiedMapIds],
       });
     if (error) console.log(error);
   }
