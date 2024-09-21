@@ -6,3 +6,4 @@ export const DELAY_MIN = 5;
 export const DELAY_MAX = 120;
 export const SPLIT = 0.5;
 export const RANKED_MAPS_LIMIT = 50;
+export const MAXIMUM_PENALTY_DAYS = 7;

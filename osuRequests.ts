@@ -1,5 +1,9 @@
 import { DAY, MINUTE } from "./timeConstants";
-import { MINIMUM_DAYS_FOR_RANK, RANK_PER_DAY } from "./config";
+import {
+  MAXIMUM_PENALTY_DAYS,
+  MINIMUM_DAYS_FOR_RANK,
+  RANK_PER_DAY,
+} from "./config";
 import { beatmapSetFromAPI, mapEventFromAPI } from "./utils";
 import {
   BeatmapSet,
@@ -145,7 +149,7 @@ export const getMapEvents = async (
   beatmapSetId: number,
 ) => {
   const url =
-    `https://osu.ppy.sh/api/v2/beatmapsets/events?types[]=qualify&types[]=disqualify&types[]=rank&beatmapset_id=${beatmapSetId}&limit=50`;
+    `https://osu.ppy.sh/api/v2/beatmapsets/events?types[]=qualify&types[]=disqualify&types[]=rank&types[]=nominate&types[]=nomination_reset&beatmapset_id=${beatmapSetId}&limit=50`;
   const data = await getAPI<{ events: MapEventAPI[] }>(url, accessToken);
 
   return data.events;
@@ -228,35 +232,93 @@ const setQueueDate = async (beatmapSet: BeatmapSet, accessToken: string) => {
     `- calculating queueDate for ${beatmapSet.id} ${beatmapSet.artist} - ${beatmapSet.title}`,
   );
 
-  const events = (await getMapEvents(accessToken, beatmapSet.id))
+  type MapEvent = {
+    type: MapEventAPI["type"];
+    time: number;
+    beatmapIds: number[];
+    nominators: number[];
+    userId: number;
+  };
+
+  const events: MapEvent[] = (await getMapEvents(accessToken, beatmapSet.id))
     .map((event) => ({
       type: event.type,
       time: Date.parse(event.created_at),
+      beatmapIds: event.comment?.beatmap_ids ?? [],
+      nominators: event.comment?.nominator_ids ?? [],
+      userId: event.user_id,
     }))
     .reverse();
   lastRequestDate = Date.now();
 
   let previousQueueDuration = 0;
   let startDate: number | null = null;
+  let lastDisqualifiedEvent: MapEvent | null = null;
+  let nominators: number[] = [];
 
-  events.forEach((event) => {
+  let penaltyDays = 0;
+
+  function compareIds(a: number[], b: number[]) {
+    const setB = new Set(b);
+    return a.length === b.length && a.every((item) => setB.has(item));
+  }
+
+  for (let i = 0; i < events.length; i++) {
+    const event = events[i];
+
     switch (event.type) {
       case "qualify":
         startDate = event.time;
+
+        if (i === events.length - 1 && lastDisqualifiedEvent != null) {
+          // https://github.com/ppy/osu-web/blob/476cd205258873f899b3d8c81b2dbe7010799751/app/Models/Beatmapset.php#L762-L764
+          // haven't verified yet, but it appears that resets due to change in nominators are still affected by penaltyDays
+          console.log(lastDisqualifiedEvent.nominators);
+          console.log(nominators);
+          if (!compareIds(lastDisqualifiedEvent.nominators, nominators)) {
+            previousQueueDuration = 0;
+          }
+
+          // https://github.com/ppy/osu-web/blob/476cd205258873f899b3d8c81b2dbe7010799751/app/Models/Beatmapset.php#L633-L653
+          if (
+            !compareIds(
+              lastDisqualifiedEvent.beatmapIds,
+              beatmapSet.beatmaps.map((b) => b.id),
+            )
+          ) {
+            previousQueueDuration = 0;
+          } else {
+            const interval = (event.time - lastDisqualifiedEvent.time) / DAY;
+            penaltyDays = Math.min(
+              Math.floor(interval / 7),
+              MAXIMUM_PENALTY_DAYS,
+            );
+          }
+        }
         break;
       case "disqualify":
+        lastDisqualifiedEvent = event;
+
         if (startDate != null) {
           previousQueueDuration += event.time - startDate;
         }
+
+        nominators = [];
         break;
       case "rank":
         previousQueueDuration = 0;
         startDate = null;
         break;
+      case "nominate":
+        nominators.push(event.userId);
+        break;
+      case "nomination_reset":
+        nominators = [];
+        break;
       default:
         break;
     }
-  });
+  }
 
   // all maps need to be qualified for at least 7 days
   const queueDuration = MINIMUM_DAYS_FOR_RANK * DAY;
@@ -265,7 +327,8 @@ const setQueueDate = async (beatmapSet: BeatmapSet, accessToken: string) => {
 
   // maps need to be qualified for at least 1 day since lastest qualified date
   beatmapSet.queueDate = new Date(
-    beatmapSet.lastQualifiedDate!.getTime() + Math.max(DAY, timeLeft),
+    beatmapSet.lastQualifiedDate!.getTime() + Math.max(DAY, timeLeft) +
+      penaltyDays * DAY,
   );
 
   console.log(new Date().toISOString(), "- success");

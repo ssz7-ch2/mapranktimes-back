@@ -64,7 +64,7 @@ export type BeatmapSetDatabase = {
 export type MapEvent = {
   id: number;
   beatmapSetId: number;
-  type: "rank" | "qualify" | "disqualify";
+  type: "rank" | "qualify" | "disqualify" | "nominate" | "nomination_reset";
   createdAt: Date;
 };
 
@@ -73,6 +73,11 @@ export type MapEventAPI = {
   beatmapset: {
     id: number;
   };
-  type: "rank" | "qualify" | "disqualify";
+  type: "rank" | "qualify" | "disqualify" | "nominate" | "nomination_reset";
   created_at: string;
+  comment: null | {
+    beatmap_ids: number[];
+    nominator_ids: number[];
+  };
+  user_id: number;
 };
