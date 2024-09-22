@@ -383,9 +383,15 @@ const setQueueDate = async (beatmapSet: BeatmapSet, accessToken: string) => {
 
   let penaltyDays = 0;
 
-  function compareIds(a: number[], b: number[]) {
+  function sameIds(a: number[], b: number[]) {
     const setB = new Set(b);
     return a.length === b.length && a.every((item) => setB.has(item));
+  }
+
+  function diffsAdded(newMapIds: number[], oldMapIds: number[]) {
+    const oldMapIdsSet = new Set(oldMapIds);
+    return newMapIds.filter((beatmapId) => !oldMapIdsSet.has(beatmapId))
+      .length > 0;
   }
 
   for (let i = 0; i < events.length; i++) {
@@ -398,15 +404,15 @@ const setQueueDate = async (beatmapSet: BeatmapSet, accessToken: string) => {
         if (i === events.length - 1 && lastDisqualifiedEvent != null) {
           // https://github.com/ppy/osu-web/blob/476cd205258873f899b3d8c81b2dbe7010799751/app/Models/Beatmapset.php#L762-L764
           // haven't verified yet, but it appears that resets due to change in nominators are still affected by penaltyDays
-          if (!compareIds(lastDisqualifiedEvent.nominators, nominators)) {
+          if (!sameIds(lastDisqualifiedEvent.nominators, nominators)) {
             previousQueueDuration = 0;
           }
 
           // https://github.com/ppy/osu-web/blob/476cd205258873f899b3d8c81b2dbe7010799751/app/Models/Beatmapset.php#L633-L653
           if (
-            !compareIds(
-              lastDisqualifiedEvent.beatmapIds,
+            diffsAdded(
               beatmapSet.beatmaps.map((b) => b.id),
+              lastDisqualifiedEvent.beatmapIds,
             )
           ) {
             previousQueueDuration = 0;
