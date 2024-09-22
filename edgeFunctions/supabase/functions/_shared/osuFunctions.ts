@@ -398,8 +398,6 @@ const setQueueDate = async (beatmapSet: BeatmapSet, accessToken: string) => {
         if (i === events.length - 1 && lastDisqualifiedEvent != null) {
           // https://github.com/ppy/osu-web/blob/476cd205258873f899b3d8c81b2dbe7010799751/app/Models/Beatmapset.php#L762-L764
           // haven't verified yet, but it appears that resets due to change in nominators are still affected by penaltyDays
-          console.log(lastDisqualifiedEvent.nominators);
-          console.log(nominators);
           if (!compareIds(lastDisqualifiedEvent.nominators, nominators)) {
             previousQueueDuration = 0;
           }
