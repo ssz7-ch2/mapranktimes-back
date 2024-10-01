@@ -276,6 +276,17 @@ const setQueueDate = async (beatmapSet: BeatmapSet, accessToken: string) => {
       case "qualify":
         startDate = event.time;
 
+        // reset previousQueueDuration from changes to beatmap ranking timer
+        const rankingSystemUpdate = (new Date("2024-09-13T12:00:00.000Z"))
+          .getTime();
+        if (
+          i !== events.length - 1 && lastDisqualifiedEvent != null &&
+          event.time > rankingSystemUpdate &&
+          lastDisqualifiedEvent.time < rankingSystemUpdate
+        ) {
+          previousQueueDuration = 0;
+        }
+
         if (i === events.length - 1 && lastDisqualifiedEvent != null) {
           // https://github.com/ppy/osu-web/blob/476cd205258873f899b3d8c81b2dbe7010799751/app/Models/Beatmapset.php#L762-L764
           // haven't verified yet, but it appears that resets due to change in nominators are still affected by penaltyDays
