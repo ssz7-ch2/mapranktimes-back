@@ -164,7 +164,7 @@ const getMapUnresolved = async (accessToken: string, beatmapSetId: number) => {
 
 export const getMapsUnresolved = async (accessToken: string) => {
   const url =
-    `https://osu.ppy.sh/api/v2/beatmapsets/discussions?beatmapset_status=qualified&message_types[]=suggestion&message_types[]=problem&only_unresolved=true&limit=50`;
+    `https://osu.ppy.sh/api/v2/beatmapsets/discussions?beatmapset_status=qualified&message_types[]=suggestion&message_types[]=problem&only_unresolved=true&show_review_embeds=on&limit=50`;
   const data = await getAPI<{ beatmapsets: BeatmapSetAPI[] }>(url, accessToken);
   return data.beatmapsets;
 };
