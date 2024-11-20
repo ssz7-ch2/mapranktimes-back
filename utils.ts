@@ -90,11 +90,11 @@ export const beatmapSetFromDatabase = ({
 };
 
 export const mapEventFromAPI = (
-  { id, beatmapset, type, created_at }: MapEventAPI,
+  { id, beatmapset, type, created_at, discussion }: MapEventAPI,
 ): MapEvent => {
   return {
     id,
-    beatmapSetId: beatmapset.id,
+    beatmapSetId: beatmapset?.id ?? discussion.beatmapset_id,
     type,
     createdAt: new Date(created_at),
   };

@@ -78,4 +78,7 @@ export type MapEventAPI = {
     nominator_ids: number[];
   };
   user_id: number;
+  discussion: {
+    beatmapset_id: number;
+  };
 };
